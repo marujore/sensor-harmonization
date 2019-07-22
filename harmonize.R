@@ -142,9 +142,10 @@ bandpassHLS_1_4 <- function(img, band, satsen){
 ######################################
 
 dir_imgs <- "/home/marujo/sensor_harmonization/LC082210692019042501T1-SC20190717115231/"
-filename <- "LC08_L1TP_221069_20190425_20190508_01_T1_sr_band5.tif"
+filename <- "LC08_L1TP_221069_20190425_20190508_01_T1_sr_band4.tif"
 scenename <- paste(sep='', dir_imgs, filename)
 dir_out <- "/home/marujo/sensor_harmonization/out/"
+dir_out <- "/home/marujo/sensor_harmonization/b4/"
 out_filename <- paste(sep='', filename, "_HARMONIZED.tif")
 sceneout <- paste(sep='', dir_out, out_filename)
 band <- "nir"

@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import os
 from scipy.stats import linregress
 from osgeo import gdal, osr
-
+import math
 
 def readImage(filename):
 # Open source dataset
@@ -22,14 +22,19 @@ def readImage(filename):
 def sec(x):
 	return (1 / numpy.cos(x) )
 
-def convert_to_radian(x):
+def degree_to_radian(x):
 	return (x * (numpy.pi/180) )
 
 # volumetric scattering
 def ross_thick(theta_sun, theta_view, phi):
-	xi = numpy.arccos(numpy.cos(theta_sun) * numpy.cos(theta_view) + numpy.sin(theta_sun) * numpy.sin(theta_view) * numpy.cos(phi))
+	x = numpy.cos(theta_sun) * numpy.cos(theta_view) + numpy.sin(theta_sun) * numpy.sin(theta_view) * numpy.cos(phi)
+	print("RossThick xmin:{}, xmax:{}".format(numpy.nanmin(x), numpy.nanmax(x) ) )
+	xi = numpy.arccos(x)
+	print("RossThick ximin:{}, ximax:{}".format(numpy.nanmin(xi), numpy.nanmax(xi) ) )
+	
 	return ((numpy.pi / 2 - xi) * numpy.cos(xi) + numpy.sin(xi)) / (numpy.cos(theta_sun) + numpy.cos(theta_view)) - (numpy.pi / 4)
-	# return(xi)
+	#Roujean 1992 model
+	# return ( ( (4 / (3 * numpy.pi)) * (1 / (numpy.cos(theta_sun) + numpy.cos(theta_view)) ) * ((numpy.pi / 2 - xi) * numpy.cos(xi) + numpy.sin(xi)) ) - 1/3 )	
 
 # geometric scattering
 def li_sparse(theta_sun, theta_view, phi):
@@ -40,12 +45,13 @@ def li_sparse(theta_sun, theta_view, phi):
 	xi_stripe = numpy.arccos(numpy.cos(theta_sun_stripe) * numpy.cos(theta_view_stripe) + numpy.sin(theta_sun_stripe) * numpy.sin(theta_view_stripe) * numpy.cos(phi))
 	D = numpy.sqrt(numpy.power( numpy.tan(theta_sun_stripe),2) + numpy.power(numpy.tan(theta_view_stripe),2) - 2*numpy.tan(theta_sun_stripe) * numpy.tan(theta_view_stripe) * numpy.cos(phi))
 	
+	# original # 
 	# cos_t = hb * ( (numpy.sqrt(numpy.power(D,2) + numpy.power( (numpy.tan(theta_sun_stripe) * numpy.tan(theta_view_stripe) * numpy.sin(phi) ),2) ) ) / (sec(theta_sun_stripe) + sec(theta_view_stripe)))
 	cos_t = numpy.power(D,2) + numpy.power( (numpy.tan(theta_sun_stripe) * numpy.tan(theta_view_stripe) * numpy.sin(phi) ), 2)
 	cos_t = hb * (numpy.sqrt(cos_t) / ( sec(theta_sun_stripe) + sec(theta_view_stripe) ) )
 
-	print("cos_T")
-	print(cos_t)
+	# print("cos_T")
+	# print(cos_t)
 	t = numpy.arccos( cos_t )
 	# t = numpy.arccos( numpy.minimum( numpy.maximum(cos_t, -1), 1) )
 	O = (t - numpy.sin(t) * cos_t) * (sec(theta_sun_stripe) + sec(theta_view_stripe)) / numpy.pi 
@@ -81,9 +87,9 @@ def rtlsr(band, theta_sun, theta_view, phi):
 		f_geo = 0.0387
 		f_vol = 0.0639
 
-
-	# return (f_iso + f_vol * ross_thick(theta_sun, theta_view, phi) + f_geo * li_sparse(theta_sun, theta_view, phi) )
-	return(li_sparse(theta_sun, theta_view, phi))
+	return (f_iso + f_vol * ross_thick(theta_sun, theta_view, phi) + f_geo * li_sparse(theta_sun, theta_view, phi) )
+	# return(ross_thick(theta_sun, theta_view, phi) )
+	# return(li_sparse(theta_sun, theta_view, phi))
 
 def bandpassHLS_1_4(img, band, satsen):
 	#Skakun2018 coefficients
@@ -137,23 +143,24 @@ def bandpassHLS_1_4(img, band, satsen):
 
 	return img
 
+
 def harmonizeHLS_1_4(img, band, satsen, solar_zenith, sensor_zenith, relative_azimuth_angle):
 	brdf = rtlsr(band, solar_zenith, sensor_zenith, relative_azimuth_angle) #(band, theta_sun, theta_view, phi)
 	img = numpy.multiply(img,brdf)
-
+	
 	img = bandpassHLS_1_4(img, band, satsen)
-
 	return img
+
 
 if __name__ == '__main__':
 
-	dir_imgs = "/home/marujo/Marujo/Harmonization/LC082210692019042501T1-SC20190717115231/"
+	dir_imgs = "/home/marujo/sensor_harmonization/LC082210692019042501T1-SC20190717115231/"
 	filename = "LC08_L1TP_221069_20190425_20190508_01_T1_sr_band5.tif"
 	scenename = dir_imgs + filename
-	dir_out = "/home/marujo/Marujo/Harmonization/out/"
+	dir_out = "/home/marujo/sensor_harmonization/out/"
 	out_filename = filename + "_HARMONIZED.tif"
 	sceneout = dir_out + out_filename
-	band = "blue"
+	band = "nir"
 	satsen = "L8"
 	sensor_azimuth_name = dir_imgs + "LC08_L1TP_221069_20190425_20190508_01_T1_sensor_azimuth_band4.tif"
 	sensor_zenith_name = dir_imgs + "LC08_L1TP_221069_20190425_20190508_01_T1_sensor_zenith_band4.tif"
@@ -169,7 +176,7 @@ if __name__ == '__main__':
 	mem_drv = gdal.GetDriverByName( 'MEM' )
 	
 	###tmp_ds = mem_drv.Create('', scene['numcol'], scene['numlin'], 1, gdal.GDT_UInt16) #GDT_Float32
-	bandtar = numpy.array(src_ds.GetRasterBand(1).ReadAsArray())
+	bandtar = numpy.array(src_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
 	tmp_ds = mem_drv.Create('', bandtar.shape[1], bandtar.shape[0], 1, gdal.GDT_UInt16)
 	
 	tmp_ds.SetGeoTransform(geotrans)
@@ -188,56 +195,99 @@ if __name__ == '__main__':
 	src_ds = gdal.Open(sensor_azimuth_name)
 	src_ds.GetRasterBand(1).SetNoDataValue(0)
 	sensor_azimuth = numpy.array(src_ds.GetRasterBand(1).ReadAsArray())
-	# sensor_azimuth[sensor_azimuth == (-32768)]=numpy.nan
+	sensor_azimuth = numpy.array(src_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
+	sensor_azimuth[sensor_azimuth == (-32768)]=numpy.nan
+	# sensor_azimuth = sensor_azimuth.astype(numpy.int16)
 	src_ds=None
-	
+	# print("TEST")
+	# print(sensor_azimuth[0,0])
+
 	src_ds = gdal.Open(sensor_zenith_name)
 	src_ds.GetRasterBand(1).SetNoDataValue(0)
 	sensor_zenith = numpy.array(src_ds.GetRasterBand(1).ReadAsArray())
-	# sensor_zenith[sensor_zenith == -32768]=numpy.nan
+	sensor_zenith = numpy.array(src_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
+	sensor_zenith[sensor_zenith == -32768]=numpy.nan
+	# sensor_zenith = sensor_zenith.astype(numpy.int16)
 	src_ds=None
 	
 	src_ds = gdal.Open(solar_azimuth_name)
 	src_ds.GetRasterBand(1).SetNoDataValue(0)
 	solar_azimuth = numpy.array(src_ds.GetRasterBand(1).ReadAsArray())
-	# solar_azimuth[solar_azimuth == -32768]=numpy.nan
+	solar_azimuth = numpy.array(src_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
+	solar_azimuth[solar_azimuth == -32768]=numpy.nan
+	# solar_azimuth = solar_azimuth.astype(numpy.int16)
 	src_ds=None
 	
 	src_ds = gdal.Open(solar_zenith_name)
 	src_ds.GetRasterBand(1).SetNoDataValue(0)
 	solar_zenith = numpy.array(src_ds.GetRasterBand(1).ReadAsArray())
-	# solar_zenith[solar_zenith == -32768]=numpy.nan
+	solar_zenith = numpy.array(src_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
+	solar_zenith[solar_zenith == -32768]=numpy.nan
+	# solar_zenith = solar_zenith.astype(numpy.int16)
 	
 
 	# ####
-	band_DN = numpy.array(tmp_ds.GetRasterBand(1).ReadAsArray())
-	print("band_DN:{}".format(band_DN[0,0]))
+	band_DN = bandtar
+	
 	relative_azimuth_angle = solar_azimuth - sensor_azimuth
-	harmonizedBand = harmonizeHLS_1_4(band_DN, band, satsen, convert_to_radian(solar_zenith), convert_to_radian(sensor_zenith), convert_to_radian(relative_azimuth_angle))
+	### harmonizedBand = harmonizeHLS_1_4(band_DN, band, satsen, degree_to_radian(solar_zenith), degree_to_radian(sensor_zenith), degree_to_radian(relative_azimuth_angle))
 	# tmp_ds.GetRasterBand(1).WriteArray(harmonizedBand)
 	# ####
 
 	warped = scenename
 	driver = gdal.GetDriverByName("GTiff")
 	
-	
 	# dst_ds = driver.CreateCopy(warped, tmp_ds, options = [ 'COMPRESS=LZW', 'TILED=YES' ] )
 	# dst_ds = None
+
+	theta_sun = solar_zenith/100
+	theta_view = sensor_zenith/100
+	phi = relative_azimuth_angle/100
+
+	theta_sun = degree_to_radian(theta_sun)
+	theta_view = degree_to_radian(theta_view)
+	phi = degree_to_radian(phi)
 	
 
-	band_DN = rtlsr(band, solar_zenith, sensor_zenith, relative_azimuth_angle)
-	dst_ds = driver.Create((dir_out + "_brdf.tif"), band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
-	# dst_ds = driver.Create(sceneout, band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_UInt16)
-	dst_ds.GetRasterBand(1).WriteArray(band_DN)
-	# follow code is adding GeoTranform and Projection
-	dst_ds.SetGeoTransform(geotrans)
-	dst_ds.SetProjection(proj)
-	#setting nodata value
-	dst_ds.GetRasterBand(1).SetNoDataValue(0)
+	#ROSS_THICK
+	# band_DN = ross_thick(theta_sun, theta_view, phi)
+	# dst_ds = driver.Create((dir_out + "RossThick_py.tif"), band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
+	# dst_ds.GetRasterBand(1).WriteArray(band_DN)
+	# dst_ds.SetGeoTransform(geotrans)
+	# dst_ds.SetProjection(proj)
+	# dst_ds.GetRasterBand(1).SetNoDataValue(0)
+
+
+	#LiSparce
+	# band_DN = li_sparse(theta_sun, theta_view, phi)
+	# dst_ds = driver.Create((dir_out + "LiSparce_py.tif"), band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
+	# dst_ds.GetRasterBand(1).WriteArray(band_DN)
+	# dst_ds.SetGeoTransform(geotrans)
+	# dst_ds.SetProjection(proj)
+	# dst_ds.GetRasterBand(1).SetNoDataValue(0)
+
+
+	# #BRDF
+	# brdf = rtlsr(band, theta_sun, theta_view, phi)
+	# dst_ds = driver.Create((dir_out + "BRDF_py.tif"), band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
+	# dst_ds.GetRasterBand(1).WriteArray(band_DN)
+	# dst_ds.SetGeoTransform(geotrans)
+	# dst_ds.SetProjection(proj)
+	# dst_ds.GetRasterBand(1).SetNoDataValue(0)
+
+
+	#img_BRDF
+	# brdf = rtlsr(band, theta_sun, theta_view, phi)
+	# band_DN = numpy.multiply(band_DN,brdf)
+	# dst_ds = driver.Create((dir_out + filename + "_BRDF_py.tif"), band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
+	# dst_ds.GetRasterBand(1).WriteArray(band_DN)
+	# dst_ds.SetGeoTransform(geotrans)
+	# dst_ds.SetProjection(proj)
+	# dst_ds.GetRasterBand(1).SetNoDataValue(0)
 	
 	src_ds=None
 	raa_ds = None
 	dst_ds=None
 	tmp_ds = None
-	
+
 	print("END :]")
