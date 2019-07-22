@@ -164,7 +164,7 @@ sensor_zenith  <- raster(sensor_zenith_name)
 solar_azimuth  <- raster(solar_azimuth_name)
 solar_zenith   <- raster(solar_zenith_name)
 
-relative_azimuth_angle <- solar_azimuth - sensor_azimuth 
+relative_azimuth_angle <- sensor_azimuth - solar_azimuth
 rm(solar_azimuth_name)
 rm(sensor_azimuth)
    
