@@ -72,11 +72,14 @@ def c_lambda(band, theta_sun, theta_view, phi, lat):
 
 	return( rtlsr(band, theta_sun, theta_view, phi) / rtlsr(band, degree_to_radian(theta_out), 0, 0) )
 
-def calculate_brdf(geotrans, band, theta_sun, theta_view, phi):
-	central_point = (numpy.size(img,0), numpy.size(img,1) )
-	lat = lonlatFromCell(geotrans,central_point)[2]
+def calculate_brdf(dst_ds, band, theta_sun, theta_view, phi):
+	
+	geotrans = dst_ds.GetGeoTransform()
+	img = numpy.array(src_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
+	central_point = (int(numpy.size(bandtar,0)/2), int(numpy.size(bandtar,1)/2) )
+	lat = lonlatFromCell(central_point[0], central_point[1], geotrans)[1]
 
-	return(c_lambda(band, theta_sun, theta_view, phi, lat) * img)
+	return(c_lambda(band, theta_sun, theta_view, phi, lat))
 
 
 def bandpassHLS_1_4(img, band, satsen):
@@ -138,7 +141,7 @@ def harmonizeHLS_1_4(img, band, satsen, solar_zenith, sensor_zenith, relative_az
 	img = bandpassHLS_1_4(img_brdf, band, satsen)
 	return img
 
-def lonlatFromCell(geotrans):
+def lonlatFromCell(x, y, geotrans):
 	#"""Returns global coordinates from pixel x, y coords"""
 	
 	# GDAL affine transform parameters, According to gdal documentation 
@@ -183,7 +186,6 @@ if __name__ == '__main__':
 	tmp_ds.SetProjection ( proj )
 	tmp_ds.GetRasterBand(1).SetNoDataValue(0)
 
-	
 
 	# if band == 'quality':
 	# 	resampling = gdal.GRA_NearestNeighbour
@@ -268,13 +270,13 @@ if __name__ == '__main__':
 	dst_ds.GetRasterBand(1).SetNoDataValue(0)
 
 
-	# #BRDF
-	# brdf = calculate_brdf(geotrans, band, theta_sun, theta_view, phi)
-	# dst_ds = driver.Create((dir_out + "BRDF_py.tif"), band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
-	# dst_ds.GetRasterBand(1).WriteArray(band_DN)
-	# dst_ds.SetGeoTransform(geotrans)
-	# dst_ds.SetProjection(proj)
-	# dst_ds.GetRasterBand(1).SetNoDataValue(0)
+	# img_BRDF
+	brdf = calculate_brdf(dst_ds, band, theta_sun, theta_view, phi)
+	dst_ds = driver.Create((dir_out + "BRDF_py.tif"), band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
+	dst_ds.GetRasterBand(1).WriteArray(band_DN)
+	dst_ds.SetGeoTransform(geotrans)
+	dst_ds.SetProjection(proj)
+	dst_ds.GetRasterBand(1).SetNoDataValue(0)
 
 
 	#img_BRDF

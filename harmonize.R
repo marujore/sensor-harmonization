@@ -16,6 +16,7 @@ degree_to_radian <- function(x){
 ################################################################################
 # volumetric scattering kernel
 RossThick <- function(theta_sun, theta_view, phi) {
+  cat(paste(sep='',"Calculating Ross Thick ...\n"))
   xi <- acos(cos(theta_sun) * cos(theta_view) + sin(theta_sun) * sin(theta_view) * cos(phi))
   rt <- ( ((pi / 2 - xi) * cos(xi) + sin(xi)) / (cos(theta_sun) + cos(theta_view)) - (pi / 4) )
   return( rt )
@@ -26,6 +27,8 @@ RossThick <- function(theta_sun, theta_view, phi) {
 # phi = relative azimuth angle between sun and sensor
 LiSparse <- function(theta_sun, theta_view, phi, hb = 2, br = 1) {
   sec <- function(x) 1 / cos(x)
+  
+  cat(paste(sep='',"Calculating LiSparceR ...\n"))
   
   theta_sun_stripe <- atan(br * tan(theta_sun))
   theta_view_stripe <- atan(br * tan(theta_view))
@@ -44,6 +47,7 @@ LiSparse <- function(theta_sun, theta_view, phi, hb = 2, br = 1) {
 # theta_sun, theta_view = zenith angles for sun/sensor
 # phi = relative azimuth angle between sun and sensor
 RTLSR_compose <- function(band, theta_sun, theta_view, phi) {
+  cat(paste(sep='',"Calculating RTLSR ...\n"))
   if (band == 'blue'){
     f_iso = 0.0774
     f_geo = 0.0079
@@ -74,19 +78,17 @@ RTLSR_compose <- function(band, theta_sun, theta_view, phi) {
     f_geo = 0.0387
     f_vol = 0.0639
   }
-  return(
-    f_iso +
-      f_vol * RossThick(theta_sun, theta_view, phi) +
-      f_geo * LiSparse(theta_sun, theta_view, phi)
-  )
+  
+  rtlsr <- f_iso + f_vol * RossThick(theta_sun, theta_view, phi) + f_geo * LiSparse(theta_sun, theta_view, phi)
+  return( rtlsr )
 }
 
 # theta_sun, theta_view = zenith angles for sun/sensor
 # phi = relative azimuth angle between sun and sensor
 c_lambda <- function(band, theta_sun, theta_view, phi, lat){
   theta_out <- 6.15e-11*lat^6 + (-1.95e-09)*lat^5 + (-9.48e-07)*lat^4 + 2.4e-05*lat^3 + 0.0119*lat^2 + -0.127*lat^1 + 31
-  
-  return( RTLSR_compose(band, theta_sun, theta_view, phi) / RTLSR_compose(band, degree_to_radian(theta_out), 0, 0) )
+  c <- RTLSR_compose(band, theta_sun, theta_view, phi) / RTLSR_compose(band, degree_to_radian(theta_out), 0, 0)
+  return( c )
 }
 
 lonlatFromCell <- function(raster,cells,spatial=FALSE) {
@@ -99,7 +101,7 @@ lonlatFromCell <- function(raster,cells,spatial=FALSE) {
   }
 }
 
-  calculate_brdf <- function(img, band, theta_sun, theta_view, phi){
+calculate_brdf <- function(img, band, theta_sun, theta_view, phi){
   central_point <- length(img)/2
   lat <- lonlatFromCell(img,central_point)[2]
   
@@ -174,8 +176,10 @@ bandpassHLS_1_4 <- function(img, band, satsen){
 }
 
 harmonizeHLS_1_4 <- function(img, band, satsen, solar_zenith, sensor_zenith, relative_azimuth_angle){
+  cat(paste(sep='',"Harmonization HLS 1.4 started ...\n"))
   brdf <- calculate_brdf(img, band, solar_zenith, sensor_zenith, relative_azimuth_angle)
   img_brdf <- img * brdf
+  cat(paste(sep='',"Calculating Bandpass ...\n"))
   return( bandpassHLS_1_4(img_brdf, band, satsen) )
 }
 ######################################
@@ -243,7 +247,9 @@ setwd(dir_out)
 #                    overwrite=TRUE, bylayer=TRUE )
 # rm(ra,img_brdf_bpass,img_brdf)
 
-img_harmonized <- harmonizeHLS_1_4(img, band, satsen, solar_zenith, sensor_zenith, relative_azimuth_angle)
-ra<- writeRaster(img_harmonized, filename= paste(sep='', filename,"_NBAR"), format="GTiff",
+img_harmonized <- harmonizeHLS_1_4(img, band, satsen, theta_sun, theta_view, phi)
+cat(paste(sep='',"Writting file ...\n"))
+writeRaster(img_harmonized, filename= paste(sep='', filename,"_NBAR"), format="GTiff",
                                     overwrite=TRUE, bylayer=TRUE )
-rm(ra)
+
+cat(paste(sep='',"End"))
