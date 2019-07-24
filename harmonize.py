@@ -1,20 +1,6 @@
 import numpy
-import matplotlib.pyplot as plt
 import os
-from scipy.stats import linregress
 from osgeo import gdal, osr
-import math
-
-def readImage(filename):
-# Open source dataset
-	raster = None
-	try:
-		mdataset = gdal.Open(filename)
-# Get the image
-		raster = mdataset.GetRasterBand(1).ReadAsArray(0, 0, mdataset.RasterXSize, mdataset.RasterYSize) 
-	except:
-		return None
-	return raster
 
 ################################
 #Harmonization based on HLS 2018
@@ -33,9 +19,7 @@ def ross_thick(theta_sun, theta_view, phi):
 	print("RossThick ximin:{}, ximax:{}".format(numpy.nanmin(xi), numpy.nanmax(xi) ) )
 	
 	return ((numpy.pi / 2 - xi) * numpy.cos(xi) + numpy.sin(xi)) / (numpy.cos(theta_sun) + numpy.cos(theta_view)) - (numpy.pi / 4)
-	#Roujean 1992 model
-	# return ( ( (4 / (3 * numpy.pi)) * (1 / (numpy.cos(theta_sun) + numpy.cos(theta_view)) ) * ((numpy.pi / 2 - xi) * numpy.cos(xi) + numpy.sin(xi)) ) - 1/3 )	
-
+	
 # geometric scattering
 def li_sparse(theta_sun, theta_view, phi):
 	hb = 2
@@ -45,20 +29,14 @@ def li_sparse(theta_sun, theta_view, phi):
 	xi_stripe = numpy.arccos(numpy.cos(theta_sun_stripe) * numpy.cos(theta_view_stripe) + numpy.sin(theta_sun_stripe) * numpy.sin(theta_view_stripe) * numpy.cos(phi))
 	D = numpy.sqrt(numpy.power( numpy.tan(theta_sun_stripe),2) + numpy.power(numpy.tan(theta_view_stripe),2) - 2*numpy.tan(theta_sun_stripe) * numpy.tan(theta_view_stripe) * numpy.cos(phi))
 	
-	# original # 
-	# cos_t = hb * ( (numpy.sqrt(numpy.power(D,2) + numpy.power( (numpy.tan(theta_sun_stripe) * numpy.tan(theta_view_stripe) * numpy.sin(phi) ),2) ) ) / (sec(theta_sun_stripe) + sec(theta_view_stripe)))
 	cos_t = numpy.power(D,2) + numpy.power( (numpy.tan(theta_sun_stripe) * numpy.tan(theta_view_stripe) * numpy.sin(phi) ), 2)
 	cos_t = hb * (numpy.sqrt(cos_t) / ( sec(theta_sun_stripe) + sec(theta_view_stripe) ) )
 
-	# print("cos_T")
-	# print(cos_t)
 	t = numpy.arccos( cos_t )
-	# t = numpy.arccos( numpy.minimum( numpy.maximum(cos_t, -1), 1) )
 	O = (t - numpy.sin(t) * cos_t) * (sec(theta_sun_stripe) + sec(theta_view_stripe)) / numpy.pi 
 
 	return (O - sec(theta_sun_stripe) - sec(theta_view_stripe) + (1 + numpy.cos(xi_stripe)) * sec(theta_sun_stripe) * sec(theta_view_stripe) / 2)
-	# return(xi_stripe)
-
+	
 #Rossthick Li-Sparce Reciprocal (RTLSR)
 def rtlsr(band, theta_sun, theta_view, phi):
 	#Skakun2018 coefficients
@@ -88,8 +66,18 @@ def rtlsr(band, theta_sun, theta_view, phi):
 		f_vol = 0.0639
 
 	return (f_iso + f_vol * ross_thick(theta_sun, theta_view, phi) + f_geo * li_sparse(theta_sun, theta_view, phi) )
-	# return(ross_thick(theta_sun, theta_view, phi) )
-	# return(li_sparse(theta_sun, theta_view, phi))
+	
+def c_lambda(band, theta_sun, theta_view, phi, lat):
+	theta_out = 6.15e-11*lat^6 + (-1.95e-09)*lat^5 + (-9.48e-07)*lat^4 + 2.4e-05*lat^3 + 0.0119*lat^2 + -0.127*lat^1 + 31
+
+	return( rtlsr(band, theta_sun, theta_view, phi) / rtlsr(band, degree_to_radian(theta_out), 0, 0) )
+
+def calculate_brdf(geotrans, band, theta_sun, theta_view, phi):
+	central_point = (numpy.size(img,0), numpy.size(img,1) )
+	lat = lonlatFromCell(geotrans,central_point)[2]
+
+	return(c_lambda(band, theta_sun, theta_view, phi, lat) * img)
+
 
 def bandpassHLS_1_4(img, band, satsen):
 	#Skakun2018 coefficients
@@ -145,22 +133,32 @@ def bandpassHLS_1_4(img, band, satsen):
 
 
 def harmonizeHLS_1_4(img, band, satsen, solar_zenith, sensor_zenith, relative_azimuth_angle):
-	brdf = rtlsr(band, solar_zenith, sensor_zenith, relative_azimuth_angle) #(band, theta_sun, theta_view, phi)
-	img = numpy.multiply(img,brdf)
-	
-	img = bandpassHLS_1_4(img, band, satsen)
+	brdf = calculate_brdf(img, band, solar_zenith, sensor_zenith, relative_azimuth_angle) #(band, theta_sun, theta_view, phi)
+	img_brdf = numpy.multiply(img,brdf)
+	img = bandpassHLS_1_4(img_brdf, band, satsen)
 	return img
 
+def lonlatFromCell(geotrans):
+	#"""Returns global coordinates from pixel x, y coords"""
+	
+	# GDAL affine transform parameters, According to gdal documentation 
+	# xoff/yoff are image left corner, 
+	# a/e are pixel wight/height and 
+	# b/d is rotation and is zero if image is north up. 
+	xoff, a, b, yoff, d, e = geotrans
+	xp = a * x + b * y + xoff
+	yp = d * x + e * y + yoff
+	return(xp, yp)
 
 if __name__ == '__main__':
 
 	dir_imgs = "/home/marujo/sensor_harmonization/LC082210692019042501T1-SC20190717115231/"
-	filename = "LC08_L1TP_221069_20190425_20190508_01_T1_sr_band5.tif"
+	filename = "LC08_L1TP_221069_20190425_20190508_01_T1_sr_band4.tif"
 	scenename = dir_imgs + filename
 	dir_out = "/home/marujo/sensor_harmonization/out/"
 	out_filename = filename + "_HARMONIZED.tif"
 	sceneout = dir_out + out_filename
-	band = "nir"
+	band = "red"
 	satsen = "L8"
 	sensor_azimuth_name = dir_imgs + "LC08_L1TP_221069_20190425_20190508_01_T1_sensor_azimuth_band4.tif"
 	sensor_zenith_name = dir_imgs + "LC08_L1TP_221069_20190425_20190508_01_T1_sensor_zenith_band4.tif"
@@ -169,8 +167,10 @@ if __name__ == '__main__':
 	
 	src_ds = gdal.Open(scenename)
 	src_ds.GetRasterBand(1).SetNoDataValue(numpy.nan)
-	geotrans=src_ds.GetGeoTransform()  #get GeoTranform from existed 'data0'
-	proj=src_ds.GetProjection() #you can get from a exsited tif or import 
+	geotrans = src_ds.GetGeoTransform()  #get GeoTranform from existed 'data0'
+	proj = src_ds.GetProjection() #you can get from a exsited tif or import 
+
+	
 
 	# Now, we create an in-memory raster
 	mem_drv = gdal.GetDriverByName( 'MEM' )
@@ -183,6 +183,7 @@ if __name__ == '__main__':
 	tmp_ds.SetProjection ( proj )
 	tmp_ds.GetRasterBand(1).SetNoDataValue(0)
 
+	
 
 	# if band == 'quality':
 	# 	resampling = gdal.GRA_NearestNeighbour
@@ -250,25 +251,25 @@ if __name__ == '__main__':
 	
 
 	#ROSS_THICK
-	# band_DN = ross_thick(theta_sun, theta_view, phi)
-	# dst_ds = driver.Create((dir_out + "RossThick_py.tif"), band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
-	# dst_ds.GetRasterBand(1).WriteArray(band_DN)
-	# dst_ds.SetGeoTransform(geotrans)
-	# dst_ds.SetProjection(proj)
-	# dst_ds.GetRasterBand(1).SetNoDataValue(0)
+	band_DN = ross_thick(theta_sun, theta_view, phi)
+	dst_ds = driver.Create((dir_out + "RossThick_py.tif"), band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
+	dst_ds.GetRasterBand(1).WriteArray(band_DN)
+	dst_ds.SetGeoTransform(geotrans)
+	dst_ds.SetProjection(proj)
+	dst_ds.GetRasterBand(1).SetNoDataValue(0)
 
 
 	#LiSparce
-	# band_DN = li_sparse(theta_sun, theta_view, phi)
-	# dst_ds = driver.Create((dir_out + "LiSparce_py.tif"), band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
-	# dst_ds.GetRasterBand(1).WriteArray(band_DN)
-	# dst_ds.SetGeoTransform(geotrans)
-	# dst_ds.SetProjection(proj)
-	# dst_ds.GetRasterBand(1).SetNoDataValue(0)
+	band_DN = li_sparse(theta_sun, theta_view, phi)
+	dst_ds = driver.Create((dir_out + "LiSparce_py.tif"), band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
+	dst_ds.GetRasterBand(1).WriteArray(band_DN)
+	dst_ds.SetGeoTransform(geotrans)
+	dst_ds.SetProjection(proj)
+	dst_ds.GetRasterBand(1).SetNoDataValue(0)
 
 
 	# #BRDF
-	# brdf = rtlsr(band, theta_sun, theta_view, phi)
+	# brdf = calculate_brdf(geotrans, band, theta_sun, theta_view, phi)
 	# dst_ds = driver.Create((dir_out + "BRDF_py.tif"), band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
 	# dst_ds.GetRasterBand(1).WriteArray(band_DN)
 	# dst_ds.SetGeoTransform(geotrans)
