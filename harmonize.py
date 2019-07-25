@@ -81,7 +81,7 @@ def centralLatFromDS(ds):
 	# xoff/yoff are image left corner, 
 	# a/e are pixel wight/height and 
 	# b/d is rotation and is zero if image is north up. 
-	xoff, a, b, yoff, d, e = geotrans
+	xoff, a, b, yoff, d, e = ds.GetGeoTransform()
 	###(138585.0, 30.0, 0.0, -1324185.0, 0.0, -30.0) #test values
 	x = central_point[0]
 	y = central_point[1]
