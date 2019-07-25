@@ -201,19 +201,23 @@ sensor_zenith_name <- paste(sep='', dir_imgs, "LC08_L1TP_221069_20190425_2019050
 solar_azimuth_name <- paste(sep='', dir_imgs, "LC08_L1TP_221069_20190425_20190508_01_T1_solar_azimuth_band4.tif")
 solar_zenith_name <- paste(sep='', dir_imgs, "LC08_L1TP_221069_20190425_20190508_01_T1_solar_azimuth_band4.tif")
 
+cat(paste(sep='',"Loading images ...\n"))
 sensor_azimuth <- raster(sensor_azimuth_name)
 sensor_zenith  <- raster(sensor_zenith_name)
 solar_azimuth  <- raster(solar_azimuth_name)
 solar_zenith   <- raster(solar_zenith_name)
 
+cat(paste(sep='',"Calculating relative azimuth ...\n"))
 relative_azimuth_angle <- sensor_azimuth - solar_azimuth
 rm(solar_azimuth_name)
 rm(sensor_azimuth)
 
+cat(paste(sep='',"Removing scale ...\n"))
 theta_sun <- solar_zenith/100
 theta_view <- sensor_zenith/100
 phi <- relative_azimuth_angle/100
 
+cat(paste(sep='',"Converting to Radian ...\n"))
 theta_sun <- degree_to_radian(theta_sun)
 theta_view <- degree_to_radian(theta_view)
 phi <- degree_to_radian(phi)
@@ -249,7 +253,7 @@ setwd(dir_out)
 
 img_harmonized <- harmonizeHLS_1_4(img, band, satsen, theta_sun, theta_view, phi)
 cat(paste(sep='',"Writting file ...\n"))
-writeRaster(img_harmonized, filename= paste(sep='', filename,"_NBAR"), format="GTiff",
+writeRaster(img_harmonized, filename= paste(sep='', filename,"_NBAR_R"), format="GTiff",
                                     overwrite=TRUE, bylayer=TRUE )
 
 cat(paste(sep='',"End"))
