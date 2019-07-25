@@ -9,7 +9,7 @@
 # usage: python <this script path> <XML Tile Metadata File> [Subsample Factor]
 
 # python C:/Marujo/Git_Projects/sensor_harmonization/sentinel2_angle_bands.py C:/Users/rennan.marujo/Downloads/S2B_MSIL2A_20190719T132239_N0213_R038_T23LMG_20190719T144040.SAFE/GRANULE/L2A_T23LMG_A012362_20190719T132241/MTD_TL.xml 10
-# python /home/marujo/sensor_harmonization/sentinel2_angle_bands.py /home/marujo/sensor_harmonization/S2A_MSIL1C_20190425T132241_N0207_R038_T23LLF_20190425T164208.SAFE/GRANULE/L1C_T23LLF_A020055_20190425T132236/MTD_TL.xml 10
+# python /home/marujo/sensor_harmonization/sentinel2_angle_bands_Pahlevan.py /home/marujo/sensor_harmonization/S2A_MSIL1C_20190425T132241_N0207_R038_T23LLF_20190425T164208.SAFE/GRANULE/L1C_T23LLF_A020055_20190425T132236/MTD_TL.xml 10
 
 from math import sqrt, cos, sin, tan, pi, asin, acos, atan, atan2
 import math
