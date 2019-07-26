@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+# Created by Rennan Marujo - rennanmarujo@gmail.com 
+
 import numpy
 import os
 from osgeo import gdal, osr, ogr
@@ -11,14 +13,6 @@ import sys
 ################################################################################
 ## Generate Sentinel Angle view bands
 ################################################################################
-
-def degree_to_radian(x):
-	return (x * (numpy.pi/180) )
-
-
-def radian_to_degree(x):
-	return (x * (180/numpy.pi) )
-
 
 def get_tileid( XML_File ):
 	tile_id = ""
