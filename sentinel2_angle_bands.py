@@ -117,11 +117,14 @@ def get_sun_angles( XML_File ):
 						az = float( values[cindex][1] )
 						solar_zenith_values[rindex,cindex] = zen
 						solar_azimuth_values[rindex,cindex] = az
-	return (numpy.flip(solar_zenith_values,0), numpy.flip(solar_azimuth_values,0))
+	solar_zenith_values = numpy.flip(solar_zenith_values,0)
+	solar_azimuth_values = numpy.flip(solar_azimuth_values,0)
+	return (solar_zenith_values, solar_azimuth_values)
 
 def get_sensor_angles( XML_File ):
-	sensor_zenith_values = numpy.empty((13,23,23)) * numpy.nan #initiates matrix
-	sensor_azimuth_values = numpy.empty((13,23,23)) * numpy.nan
+	numband = 13
+	sensor_zenith_values = numpy.empty((numband,23,23)) * numpy.nan #initiates matrix
+	sensor_azimuth_values = numpy.empty((numband,23,23)) * numpy.nan
 	
 	# Parse the XML file 
 	tree = ET.parse(XML_File)
@@ -163,8 +166,11 @@ def get_sensor_angles( XML_File ):
 						az = float( values[cindex][1] )
 						sensor_zenith_values[bandId, rindex,cindex] = zen
 						sensor_azimuth_values[bandId, rindex,cindex] = az
-	return(numpy.flip(sensor_zenith_values,0),numpy.flip(sensor_azimuth_values,0))
-
+	for bandindex in range(numband):
+		sensor_zenith_values[bandindex] = numpy.flip(sensor_zenith_values[bandindex],0)
+		sensor_azimuth_values[bandindex] = numpy.flip(sensor_azimuth_values[bandindex],0)
+	return(sensor_zenith_values,sensor_azimuth_values)
+	
 def array2raster(newRasterfn,rasterOrigin,pixelWidth,pixelHeight,array):
 
     cols = array.shape[1]
@@ -187,10 +193,11 @@ def main():
 	XMLfile = "/home/marujo/sensor_harmonization/S2A_MSIL1C_20190425T132241_N0207_R038_T23LLF_20190425T164208.SAFE/GRANULE/L1C_T23LLF_A020055_20190425T132236/MTD_TL.xml"
 	solar_zenith, solar_azimuth = get_sun_angles( XMLfile )
 	sensor_zenith, sensor_azimuth = get_sensor_angles( XMLfile )
-	scenepath = dirSafe + "/GRANULE/L1C_T23LLF_A020055_20190425T132236/IMG_DATA/T23LLF_20190425T132241_B04.jp2"
 	scenename = "T23LLF_20190425T132241_B04"
+	scenepath = dirSafe + "/GRANULE/L1C_T23LLF_A020055_20190425T132236/IMG_DATA/"
+	scene = scenepath + scenename + ".jp2"
 
-	src_ds = gdal.Open(scenepath)
+	src_ds = gdal.Open(scene)
 	src_ds.GetRasterBand(1).SetNoDataValue(numpy.nan)
 	geotrans = src_ds.GetGeoTransform()  #get GeoTranform from existed 'data0'
 	proj = src_ds.GetProjection() #you can get from a exsited tif or import 
@@ -208,22 +215,51 @@ def main():
 	
 	rasterOrigin = (xp, yp) # xoff/yoff are image left corner,
 	
-	newRasterfn = scenename + '_solar_zenith.tif'
-	array2raster(newRasterfn,rasterOrigin,5000,5000,solar_zenith) # convert array to raster
+	# # Generating images
+	# newRasterfn = scenename + '_solar_zenith.tif'
+	# array2raster(newRasterfn,rasterOrigin,5000,5000,solar_zenith) # convert array to raster
 	
-	newRasterfn = scenename + '_solar_azimuth.tif'
-	array2raster(newRasterfn,rasterOrigin,5000,5000,solar_azimuth) # convert array to raster
+	# newRasterfn = scenename + '_solar_azimuth.tif'
+	# array2raster(newRasterfn,rasterOrigin,5000,5000,solar_azimuth) # convert array to raster
 	
-	for band_num in range(13):
-		newRasterfn = scenename + '_sensor_zenith_band' + str(band_num) + '.tif'
-		array2raster(newRasterfn,rasterOrigin,5000,5000,sensor_zenith[band_num]) # convert array to raster
+	# for band_num in range(13):
+	# 	print(band_num)
+	# 	newRasterfn = scenename + '_sensor_zenith_band' + str(band_num) + '.tif'
+	# 	array2raster(newRasterfn,rasterOrigin,5000,5000,sensor_zenith[band_num]) # convert array to raster
 		
-		newRasterfn = scenename + '_sensor_azimuth' + str(band_num) + '.tif'
-		array2raster(newRasterfn,rasterOrigin,5000,5000,sensor_azimuth[band_num]) # convert array to raster
+	# 	newRasterfn = scenename + '_sensor_azimuth' + str(band_num) + '.tif'
+	# 	array2raster(newRasterfn,rasterOrigin,5000,5000,sensor_azimuth[band_num]) # convert array to raster
 	
 
 
+	## Resampling
+	
+	outdir = "/home/marujo/sensor_harmonization/out_sentinel_angle_bands/"
+	scene = "T23LLF_20190425T132241_B04_sensor_azimuth4.tif"
+	
+	#input file
+	angle_ds = gdal.Open( outdir + scene)
+	inputProj = angle_ds.GetProjection()
+	inputTrans = angle_ds.GetGeoTransform()
+	angle_ds.GetRasterBand(1).SetNoDataValue(numpy.nan)
+	
+	# band_angle = numpy.array(angle_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
+	# print(band_angle[0,0])
+	# print(len(band_angle))
 
+	#outputfile
+	filename = scenename + '_sensor_azimuth_resampled.tif'
+	driver = gdal.GetDriverByName('GTiff')
+	tmp_ds = driver.Create(filename, band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
+	tmp_ds.SetGeoTransform( geotrans )
+	tmp_ds.SetProjection( proj )
+
+	resampling = gdal.GRA_Bilinear
+	gdal.ReprojectImage( angle_ds, tmp_ds, angle_ds.GetProjection(), tmp_ds.GetProjection(), resampling)
+	
+	del tmp_ds
+	del angle_ds
+	del src_ds
 
 
 
