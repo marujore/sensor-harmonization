@@ -1,10 +1,17 @@
+#!/usr/bin/env python
+
+# Created by Rennan Marujo - rennanmarujo@gmail.com 
+
 import numpy
 import os
 from osgeo import gdal, osr, ogr
 from pyproj import Proj, transform
+import time
+import sys
 
-################################
-#Harmonization based on HLS 2018
+################################################################################
+## Harmonization based on HLS 2018
+################################################################################
 
 def sec(x):
 	return (1 / numpy.cos(x) )
@@ -161,150 +168,163 @@ def bandpassHLS_1_4(img, band, satsen):
 
 	return img
 
-
-def harmonizeHLS_1_4(ds, img, band, satsen, theta_sun, theta_view, phi):
+def harmonize_without_bpass(ds, band, satsen, theta_sun, theta_view, phi):
 	brdf = calculate_brdf(ds, band, theta_sun, theta_view, phi) #solar_zenith, sensor_zenith, relative_azimuth_angle
-	print("TEST:{}".format(brdf[2000,2000]))
-	print("TEST:{}".format(img[2000,2000]))
+	img = numpy.array(ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
+	img_brdf = numpy.multiply(img,brdf)
+	return img_brdf
+
+
+def harmonizeHLS_1_4(ds, band, satsen, theta_sun, theta_view, phi):
+	brdf = calculate_brdf(ds, band, theta_sun, theta_view, phi) #solar_zenith, sensor_zenith, relative_azimuth_angle
+	img = numpy.array(ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
 	img_brdf = numpy.multiply(img,brdf)
 	img_brdf_bpass = bandpassHLS_1_4(img_brdf, band, satsen)
 	return img_brdf_bpass
 
-
-if __name__ == '__main__':
-
-	dir_imgs = "/home/marujo/sensor_harmonization/LC082210692019042501T1-SC20190717115231/"
-	filename = "LC08_L1TP_221069_20190425_20190508_01_T1_sr_band4.tif"
-	scenename = dir_imgs + filename
-	dir_out = "/home/marujo/sensor_harmonization/out/"
-	out_filename = filename + "_HARMONIZED.tif"
-	sceneout = dir_out + out_filename
-	band = "red"
-	satsen = "L8"
-	sensor_azimuth_name = dir_imgs + "LC08_L1TP_221069_20190425_20190508_01_T1_sensor_azimuth_band4.tif"
-	sensor_zenith_name = dir_imgs + "LC08_L1TP_221069_20190425_20190508_01_T1_sensor_zenith_band4.tif"
-	solar_azimuth_name = dir_imgs + "LC08_L1TP_221069_20190425_20190508_01_T1_solar_azimuth_band4.tif"
-	solar_zenith_name = dir_imgs + "LC08_L1TP_221069_20190425_20190508_01_T1_solar_azimuth_band4.tif"
+def harmonize(img_file, band, satsen, sensor_azimuth_name, sensor_zenith_name, solar_azimuth_name, solar_zenith_name, dir_out):
+	name = os.path.split(img_file)[1][:-4]
+	# out_filename = name + "_HARMONIZED.tif"
+	# sceneout = dir_out + out_filename
 	
-	src_ds = gdal.Open(scenename)
+	src_ds = gdal.Open(img_file)
 	src_ds.GetRasterBand(1).SetNoDataValue(numpy.nan)
 	geotrans = src_ds.GetGeoTransform()  #get GeoTranform from existed 'data0'
-	proj = src_ds.GetProjection() #you can get from a exsited tif or import 
+	proj = src_ds.GetProjection() #you can get from a exsited tif or import
+	cols = src_ds.RasterXSize
+	rows = src_ds.RasterYSize
 
-
-	# Now, we create an in-memory raster
-	mem_drv = gdal.GetDriverByName( 'MEM' )
-	
-	###tmp_ds = mem_drv.Create('', scene['numcol'], scene['numlin'], 1, gdal.GDT_UInt16) #GDT_Float32
-	bandtar = numpy.array(src_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
-	tmp_ds = mem_drv.Create('', bandtar.shape[1], bandtar.shape[0], 1, gdal.GDT_UInt16)
-	
-	tmp_ds.SetGeoTransform(geotrans)
-	tmp_ds.SetProjection ( proj )
+	tmp_ds = gdal.Open(solar_azimuth_name)
 	tmp_ds.GetRasterBand(1).SetNoDataValue(0)
-
-
-	# if band == 'quality':
-	# 	resampling = gdal.GRA_NearestNeighbour
-	# else:
-	# 	resampling = gdal.GRA_Bilinear
-	# res = gdal.ReprojectImage( src_ds, tmp_ds, src_ds.GetProjection(), tmp_ds.GetProjection(), resampling)
-	src_ds=None
-
-
-	src_ds = gdal.Open(sensor_azimuth_name)
-	src_ds.GetRasterBand(1).SetNoDataValue(0)
-	sensor_azimuth = numpy.array(src_ds.GetRasterBand(1).ReadAsArray())
-	sensor_azimuth = numpy.array(src_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
-	sensor_azimuth[sensor_azimuth == (-32768)]=numpy.nan
-	# sensor_azimuth = sensor_azimuth.astype(numpy.int16)
-	src_ds=None
-	# print("TEST")
-	# print(sensor_azimuth[0,0])
-
-	src_ds = gdal.Open(sensor_zenith_name)
-	src_ds.GetRasterBand(1).SetNoDataValue(0)
-	sensor_zenith = numpy.array(src_ds.GetRasterBand(1).ReadAsArray())
-	sensor_zenith = numpy.array(src_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
-	sensor_zenith[sensor_zenith == -32768]=numpy.nan
-	# sensor_zenith = sensor_zenith.astype(numpy.int16)
-	src_ds=None
+	solar_azimuth = numpy.array(tmp_ds.GetRasterBand(1).ReadAsArray())
+	solar_azimuth = numpy.array(tmp_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
+	if(satsen == 'L8'):
+		solar_azimuth[solar_azimuth == -32768]=numpy.nan
+	del tmp_ds
 	
-	src_ds = gdal.Open(solar_azimuth_name)
-	src_ds.GetRasterBand(1).SetNoDataValue(0)
-	solar_azimuth = numpy.array(src_ds.GetRasterBand(1).ReadAsArray())
-	solar_azimuth = numpy.array(src_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
-	solar_azimuth[solar_azimuth == -32768]=numpy.nan
-	# solar_azimuth = solar_azimuth.astype(numpy.int16)
-	src_ds=None
-	
-	src_ds = gdal.Open(solar_zenith_name)
-	src_ds.GetRasterBand(1).SetNoDataValue(0)
-	solar_zenith = numpy.array(src_ds.GetRasterBand(1).ReadAsArray())
-	solar_zenith = numpy.array(src_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
-	solar_zenith[solar_zenith == -32768]=numpy.nan
-	# solar_zenith = solar_zenith.astype(numpy.int16)
-	
+	tmp_ds = gdal.Open(sensor_azimuth_name)
+	tmp_ds.GetRasterBand(1).SetNoDataValue(0)
+	sensor_azimuth = numpy.array(tmp_ds.GetRasterBand(1).ReadAsArray())
+	sensor_azimuth = numpy.array(tmp_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
+	if(satsen == 'L8'):
+		sensor_azimuth[sensor_azimuth == (-32768)]=numpy.nan
+	del tmp_ds
 
-	# ####
-	band_DN = bandtar
+	phi = sensor_azimuth - solar_azimuth
+	del sensor_azimuth, solar_azimuth
+
+	tmp_ds = gdal.Open(solar_zenith_name)
+	tmp_ds.GetRasterBand(1).SetNoDataValue(0)
+	theta_sun = numpy.array(tmp_ds.GetRasterBand(1).ReadAsArray())
+	theta_sun = numpy.array(tmp_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
+	if(satsen == 'L8'):
+		theta_sun[theta_sun == -32768]=numpy.nan
+	del tmp_ds
 	
-	relative_azimuth_angle = solar_azimuth - sensor_azimuth
-	### harmonizedBand = harmonizeHLS_1_4(band_DN, band, satsen, degree_to_radian(solar_zenith), degree_to_radian(sensor_zenith), degree_to_radian(relative_azimuth_angle))
-	# tmp_ds.GetRasterBand(1).WriteArray(harmonizedBand)
-	# ####
+	tmp_ds = gdal.Open(sensor_zenith_name)
+	tmp_ds.GetRasterBand(1).SetNoDataValue(0)
+	theta_view = numpy.array(tmp_ds.GetRasterBand(1).ReadAsArray())
+	theta_view = numpy.array(tmp_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
+	if(satsen == 'L8'):
+		theta_view[theta_view == -32768]=numpy.nan
+	del tmp_ds
 
-	warped = scenename
-	driver = gdal.GetDriverByName("GTiff")
+	#perform scale calculation
+	if(satsen == 'L8'):
+		theta_sun /= 100
+		theta_view /= 100
+		phi /= 100
 	
-	dst_ds = driver.CreateCopy(warped, tmp_ds, options = [ 'COMPRESS=LZW', 'TILED=YES' ] )
-	dst_ds = None
-
-	theta_sun = solar_zenith/100
-	theta_view = sensor_zenith/100
-	phi = relative_azimuth_angle/100
-
+	#convert angle bands to radian
 	theta_sun = degree_to_radian(theta_sun)
 	theta_view = degree_to_radian(theta_view)
 	phi = degree_to_radian(phi)
 	
+	driver = gdal.GetDriverByName("GTiff")
 
-	# #ROSS_THICK
-	# rt = ross_thick(theta_sun, theta_view, phi)
-	# dst_ds = driver.Create((dir_out + "RossThick_py.tif"), band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
-	# dst_ds.GetRasterBand(1).WriteArray(rt)
-	# dst_ds.SetGeoTransform(geotrans)
-	# dst_ds.SetProjection(proj)
-	# dst_ds.GetRasterBand(1).SetNoDataValue(0)
+	### ROSS_THICK ###
+	rt = ross_thick(theta_sun, theta_view, phi)
+	dst_ds = driver.Create((dir_out + name + "_RossThick.tif"), cols, rows, 1, gdal.GDT_Float32)
+	dst_ds.GetRasterBand(1).WriteArray(rt)
+	dst_ds.SetGeoTransform(geotrans)
+	dst_ds.SetProjection(proj)
+	dst_ds.GetRasterBand(1).SetNoDataValue(0)
+	del dst_ds
 
-	# #LiSparce
-	# ls = li_sparse(theta_sun, theta_view, phi)
-	# dst_ds = driver.Create((dir_out + "LiSparce_py.tif"), band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
-	# dst_ds.GetRasterBand(1).WriteArray(ls)
-	# dst_ds.SetGeoTransform(geotrans)
-	# dst_ds.SetProjection(proj)
-	# dst_ds.GetRasterBand(1).SetNoDataValue(0)
+	### LiSparce ###
+	ls = li_sparse(theta_sun, theta_view, phi)
+	dst_ds = driver.Create((dir_out + name + "_LiSparce.tif"), cols, rows, 1, gdal.GDT_Float32)
+	dst_ds.GetRasterBand(1).WriteArray(ls)
+	dst_ds.SetGeoTransform(geotrans)
+	dst_ds.SetProjection(proj)
+	dst_ds.GetRasterBand(1).SetNoDataValue(0)
+	del dst_ds
 
-	# # BRDF
-	# brdf = calculate_brdf(src_ds, band, theta_sun, theta_view, phi)
-	# dst_ds = driver.Create((dir_out + "BRDF_py.tif"), band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
-	# dst_ds.GetRasterBand(1).WriteArray(brdf)
-	# dst_ds.SetGeoTransform(geotrans)
-	# dst_ds.SetProjection(proj)
-	# dst_ds.GetRasterBand(1).SetNoDataValue(0)
+	### BRDF mask ###
+	brdf = calculate_brdf(src_ds, band, theta_sun, theta_view, phi)
+	dst_ds = driver.Create((dir_out + name + "_BRDFmask.tif"), cols, rows, 1, gdal.GDT_Float32)
+	dst_ds.GetRasterBand(1).WriteArray(brdf)
+	dst_ds.SetGeoTransform(geotrans)
+	dst_ds.SetProjection(proj)
+	dst_ds.GetRasterBand(1).SetNoDataValue(0)
+	del dst_ds
 
-	#img_BRDF
-	print("TEST:{}".format(band_DN[2000,2000]))
-	img_BRDF = harmonizeHLS_1_4(src_ds, band_DN, band, satsen, theta_sun, theta_view, phi)
-	dst_ds = driver.Create((dir_out + filename + "_NBAR_py.tif"), band_DN.shape[1], band_DN.shape[0], 1, gdal.GDT_Float32)
+	### BRDF applyed ###
+	brdf = harmonize_without_bpass(src_ds, band, satsen, theta_sun, theta_view, phi)
+	dst_ds = driver.Create((dir_out + name + "_BRDF.tif"), cols, rows, 1, gdal.GDT_Float32)
+	dst_ds.GetRasterBand(1).WriteArray(brdf)
+	dst_ds.SetGeoTransform(geotrans)
+	dst_ds.SetProjection(proj)
+	dst_ds.GetRasterBand(1).SetNoDataValue(0)
+	del dst_ds
+
+	### NBAR ###
+	img_BRDF = harmonizeHLS_1_4(src_ds, band, satsen, theta_sun, theta_view, phi)
+	dst_ds = driver.Create((dir_out + name + "_NBAR.tif"), cols, rows, 1, gdal.GDT_Float32)
 	dst_ds.GetRasterBand(1).WriteArray(img_BRDF)
 	dst_ds.SetGeoTransform(geotrans)
 	dst_ds.SetProjection(proj)
 	dst_ds.GetRasterBand(1).SetNoDataValue(0)
+	del dst_ds
 	
-	src_ds = None
-	raa_ds = None
-	dst_ds = None
-	tmp_ds = None
+	del src_ds
 
+def main():
+	### Landsat data set ###
+	dir_imgs = "/home/marujo/sensor_harmonization/LC082210692019042501T1-SC20190717115231/"
+	img_name = "LC08_L1TP_221069_20190425_20190508_01_T1_sr_band4.tif"
+	img_file = dir_imgs + img_name
+	dir_out = "/home/marujo/sensor_harmonization/out/"
+	band = "red"
+	satsen = "L8"
+	sensor_azimuth_file = dir_imgs + "LC08_L1TP_221069_20190425_20190508_01_T1_sensor_azimuth_band4.tif"
+	sensor_zenith_file = dir_imgs + "LC08_L1TP_221069_20190425_20190508_01_T1_sensor_zenith_band4.tif"
+	solar_azimuth_file = dir_imgs + "LC08_L1TP_221069_20190425_20190508_01_T1_solar_azimuth_band4.tif"
+	solar_zenith_file = dir_imgs + "LC08_L1TP_221069_20190425_20190508_01_T1_solar_zenith_band4.tif"
+	harmonize(img_file, band, satsen, sensor_azimuth_file, sensor_zenith_file, solar_azimuth_file, solar_zenith_file, dir_out)
+
+	
+	# ### Sentinel data set ###
+	# dir_imgs = "/home/marujo/sensor_harmonization/S2A_MSIL1C_20190425T132241_N0207_R038_T23LLF_20190425T164208.SAFE/GRANULE/L1C_T23LLF_A020055_20190425T132236/IMG_DATA/"
+	# dir_ang = "/home/marujo/sensor_harmonization/S2A_MSIL1C_20190425T132241_N0207_R038_T23LLF_20190425T164208.SAFE/GRANULE/L1C_T23LLF_A020055_20190425T132236/ANG_DATA/"
+	# img_name = "T23LLF_20190425T132241_B04.jp2"
+	# img_file = dir_imgs + img_name
+	# dir_out = "/home/marujo/sensor_harmonization/out/"
+	# band = "red"
+	# satsen = "S2SR_A"
+	# sensor_azimuth_file = dir_ang + "S2A_OPER_MSI_L1C_TL_SGS__20190425T164208_A020055_T23LLF_N02.07sensor_azimuth_mean_resampled.tif"
+	# sensor_zenith_file = dir_ang + "S2A_OPER_MSI_L1C_TL_SGS__20190425T164208_A020055_T23LLF_N02.07sensor_zenith_mean_resampled.tif"
+	# solar_azimuth_file = dir_ang + "S2A_OPER_MSI_L1C_TL_SGS__20190425T164208_A020055_T23LLF_N02.07solar_azimuth_resampled.tif"
+	# solar_zenith_file = dir_ang + "S2A_OPER_MSI_L1C_TL_SGS__20190425T164208_A020055_T23LLF_N02.07_solar_zenith_resampled.tif"
+	# harmonize(img_file, band, satsen, sensor_azimuth_file, sensor_zenith_file, solar_azimuth_file, solar_zenith_file, dir_out)
+
+
+
+if __name__ == '__main__':
+	start = time.time()
+	main()
+	end = time.time()
+	print("Duration time: {}".format(end - start))
 	print("END :]")
+
+#sys.exit(0)
