@@ -174,10 +174,8 @@ def resampled_anglebands(ang_matrix, imgref, filename):
 	geotrans = src_ds.GetGeoTransform()  #get GeoTranform from existed 'data0'
 	proj = src_ds.GetProjection() #you can get from a exsited tif or import 
 
-	band_DN = numpy.array(src_ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)
-
-	rows = band_DN.shape[0]
-	cols = band_DN.shape[1]
+	cols = src_ds.RasterXSize
+	rows = src_ds.RasterYSize
 
 	rasterOrigin = (geotrans[0],geotrans[3])
 
