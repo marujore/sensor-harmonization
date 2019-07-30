@@ -76,7 +76,7 @@ def rtlsr(band, theta_sun, theta_view, phi):
 def c_lambda(band, theta_sun, theta_view, phi, lat):
 	theta_out = 6.15e-11*numpy.power(lat,6) + (-1.95e-09)*numpy.power(lat,5) + (-9.48e-07)*numpy.power(lat,4) + 2.4e-05*numpy.power(lat,3) + 0.0119*numpy.power(lat,2) + -0.127*lat + 31
 
-	return( rtlsr(band, theta_sun, theta_view, phi) / rtlsr(band, degree_to_radian(theta_out), 0, 0) )
+	return( rtlsr(band, degree_to_radian(theta_out), 0, 0) / rtlsr(band, theta_sun, theta_view, phi) )
 
 def centralLatFromDS(ds):
 	img = numpy.array(ds.GetRasterBand(1).ReadAsArray()).astype(numpy.float32)

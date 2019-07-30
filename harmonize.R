@@ -87,7 +87,7 @@ RTLSR_compose <- function(band, theta_sun, theta_view, phi) {
 # phi = relative azimuth angle between sun and sensor
 c_lambda <- function(band, theta_sun, theta_view, phi, lat){
   theta_out <- 6.15e-11*lat^6 + (-1.95e-09)*lat^5 + (-9.48e-07)*lat^4 + 2.4e-05*lat^3 + 0.0119*lat^2 + -0.127*lat^1 + 31
-  c <- RTLSR_compose(band, theta_sun, theta_view, phi) / RTLSR_compose(band, degree_to_radian(theta_out), 0, 0)
+  c <- RTLSR_compose(band, degree_to_radian(theta_out), 0, 0) / RTLSR_compose(band, theta_sun, theta_view, phi)
   return( c )
 }
 
