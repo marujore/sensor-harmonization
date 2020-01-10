@@ -112,11 +112,12 @@ def calc_refl_noround(pars, vzn, szn, raa):
     return ref
 
 
-def NBAR_calculate_global_perband(band, band_sz, band_sa, band_vz, band_va,  b):
-    landsat_input = band
-    landsat_output = band
-    index = ~numpy.isnan(band)
-    if (numpy.any(index)):
+def NBAR_calculate_global_perband(band, band_sz, band_sa, band_vz, band_va, b):
+    sensor_input = band
+    sensor_output = band
+    notnan_index = ~numpy.isnan(band)
+    if (numpy.any(notnan_index)):
+        ### Applying scale factor on angle bands
         solar_zenith = numpy.divide(band_sz, 100)
         view_zenith = numpy.divide(band_vz, 100)
         relative_azimuth = numpy.divide(numpy.subtract(band_va, band_sa), 100)
@@ -125,9 +126,9 @@ def NBAR_calculate_global_perband(band, band_sz, band_sa, band_vz, band_va,  b):
         srf1 = calc_refl_noround(pars_array[b,:].T, view_zenith, solar_zenith, relative_azimuth)
         srf0 = calc_refl_noround(pars_array[b,:].T, numpy.zeros(len(view_zenith) ), solar_zenith_output, numpy.zeros(len(view_zenith)))
         ratio = numpy.ravel(numpy.divide(srf0, srf1).T)
-        landsat_output = numpy.multiply(ratio, landsat_input).astype(numpy.int16)
+        sensor_output = numpy.multiply(ratio, sensor_input).astype(numpy.int16)
 
-    return landsat_output
+    return sensor_output
 
 
 def bandpassHLS_1_4(img, band, satsen):
@@ -185,6 +186,7 @@ def bandpassHLS_1_4(img, band, satsen):
 
 
 def processNBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, out_dir):
+    pars_array_index = {'B02': 0, 'B03': 1, 'B04': 2, 'B8A': 3, 'B11': 4, 'B12': 5} 
     imgs = os.listdir(img_dir)
     for b in bands:
         print('Harmonization band {}'.format(b))
@@ -200,8 +202,8 @@ def processNBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, out_
             kwargs = dataset.meta
         band_one = band.flatten()
 
-        print("Producing NBAR ...")
-        band_one = NBAR_calculate_global_perband(band_one, band_sz, band_sa, band_vz, band_va, 0)
+        print("Producing NBAR band {} ({})...".format(b, pars_array_index[b]))
+        band_one = NBAR_calculate_global_perband(band_one, band_sz, band_sa, band_vz, band_va, pars_array_index[b])
 
         if (satsen == 'S2A') or (satsen == 'S2B'):
             band_one = bandpassHLS_1_4(band_one, b, satsen)
