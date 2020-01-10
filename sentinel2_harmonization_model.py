@@ -9,6 +9,8 @@ import rasterio
 import re
 import time
 
+from rasterio.enums import Resampling
+
 # Coeffients in  Roy, D. P., Zhang, H. K., Ju, J., Gomez-Dans, J. L., Lewis, P. E., Schaaf, C. B., Sun Q., Li J., Huang H., & Kovalskyy, V. (2016). 
 # A general method to normalize Landsat reflectance data to nadir BRDF adjusted reflectance. 
 # Remote Sensing of Environment, 176, 255-271.
@@ -71,7 +73,7 @@ def LiKernel(hbratio, brratio, tantv, tanti, sinphi, cosphi, SparseFlag, RecipFl
             result = (1 + phaang['cosres']) / (GetpAnglesv['cosp'] * GetpAnglesi['cosp'] * (overlap['temp'] - overlap['overlap'])) - 2.
         else:
             result = (1 + phaang['cosres']) / (GetpAnglesv['cosp'] * (overlap['temp'] - overlap['overlap'])) - 2.
-            
+
     return result
 
 
@@ -110,7 +112,7 @@ def calc_refl_noround(pars, vzn, szn, raa):
     return ref
 
 
-def NBAR_calculate_global_perband(band, band_sz, band_vz, band_va, band_sa, b):
+def NBAR_calculate_global_perband(band, band_sz, band_sa, band_vz, band_va,  b):
     landsat_input = band
     landsat_output = band
     index = ~numpy.isnan(band)
@@ -129,6 +131,7 @@ def NBAR_calculate_global_perband(band, band_sz, band_vz, band_va, band_sa, b):
 
 
 def bandpassHLS_1_4(img, band, satsen):
+    print('Applying bandpass band {} satsen {}'.format(band, satsen))
     #Skakun2018 coefficients
     if (satsen == 'S2A'):
         if (band == 'B01'): #ultraBlue/coastal #MODIS don't have this band
@@ -181,14 +184,40 @@ def bandpassHLS_1_4(img, band, satsen):
     return img
 
 
-def sentinel_input(sz_path, sa_path, vz_path, va_path, SAFEL2A):
-    ### Sentinel-2 data set ###
-    img_dir = os.path.join(SAFEL2A, 'GRANULE', os.path.join(os.listdir(os.path.join(SAFEL2A,'GRANULE/'))[0], 'IMG_DATA/R10m/'))
-    out_dir = os.path.join(SAFEL2A, 'GRANULE', os.path.join(os.listdir(os.path.join(SAFEL2A,'GRANULE/'))[0], 'HARMONIZED_DATA/'))
-    os.makedirs(out_dir, exist_ok=True)
-    satsen = os.path.basename(SAFEL2A)[0:3]
-    print('SatSen: {}'.format(satsen))
+def processNBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, out_dir):
+    imgs = os.listdir(img_dir)
+    for b in bands:
+        print('Harmonization band {}'.format(b))
+        r = re.compile('.*_{}_*'.format(b))
+        input_file = list(filter(r.match, imgs))[0]
+        output_file = out_dir + input_file[0:-4] + '_NBAR_py.tif'
 
+        print('Reading input data ...')
+        with rasterio.open(img_dir + input_file) as dataset:
+            band = dataset.read(1)
+            nodata = dataset.nodata
+            mask = band == nodata
+            kwargs = dataset.meta
+        band_one = band.flatten()
+
+        print("Producing NBAR ...")
+        band_one = NBAR_calculate_global_perband(band_one, band_sz, band_sa, band_vz, band_va, 0)
+
+        if (satsen == 'S2A') or (satsen == 'S2B'):
+            band_one = bandpassHLS_1_4(band_one, b, satsen)
+
+        dims = band.shape
+        band = band_one.astype(numpy.int16).reshape((dims[0], dims[1]))
+        # band[mask] = nodata
+
+        kwargs['dtype'] = numpy.int16
+        kwargs['driver'] = 'Gtiff'
+        kwargs['compress'] = 'LZW'
+        with rasterio.open(str(output_file), 'w', **kwargs) as dst:
+            dst.write_band(1, band)
+
+
+def load_10m_angles(sz_path, sa_path, vz_path, va_path):
     print('Loading angle bands ...')
     with rasterio.open(sz_path) as dataset:
         band_sz = dataset.read(1)
@@ -203,38 +232,60 @@ def sentinel_input(sz_path, sa_path, vz_path, va_path, SAFEL2A):
     band_vz = band_vz.flatten()
     band_va = band_va.flatten()
 
-    imgs = os.listdir(img_dir)
-    bands = ['B02','B03','B04']#,'B8A','B11','B12']
-    for b in bands:
-        print('Harmonization band {}'.format(b))
-        r = re.compile(".*_{}_*".format(b))
-        input_file = list(filter(r.match, imgs))[0]
-        output_file = out_dir + input_file[0:-4] + "_NBAR_py.tif"
+    return band_sz, band_sa, band_vz, band_va
 
-        print("Reading input data ...")
-        with rasterio.open(img_dir + input_file) as dataset:
-            band = dataset.read(1)
-            nodata = dataset.nodata
-            mask = band == nodata
-            kwargs = dataset.meta
 
-        band_one = band.flatten()
+def resample_raster(img_path, upscale_factor = 1/2, out_path = None):
+    with rasterio.open(img_path) as dataset:
+        # resample data to target shape
+        data = dataset.read(
+            out_shape=(
+                dataset.count,
+                int(dataset.width * upscale_factor),
+                int(dataset.height * upscale_factor)
+            ),
+            resampling=Resampling.average
+        )
+        kwargs = dataset.meta
 
-        print("Producing NBAR ...")
-        band_one = NBAR_calculate_global_perband(band_one, band_sz, band_vz, band_va, band_sa, 0)
+        # scale image transform
+        transform = dataset.transform * dataset.transform.scale(
+            (dataset.width / data.shape[-2]),
+            (dataset.height / data.shape[-1])
+        )
 
-        if (satsen == 'S2A') or (satsen == 'S2A'):
-            print("Applying bandpass ...")
-            band_one = bandpassHLS_1_4(band, b, satsen)
+        kwargs['width'] = data.shape[1]
+        kwargs['height'] = data.shape[2]
+        kwargs['transform'] = transform
+        if out_path is not None:
+            with rasterio.open(out_path, 'w', **kwargs) as dst:
+                dst.write_band(1, data[0])
+        return data[0]
 
-        dims = band.shape
-        width = dims[0]
-        lengt = dims[1]
-        band = band_one.astype(numpy.int16).reshape((width, lengt))
-        # band[mask] = nodata
 
-        kwargs['dtype'] = numpy.int16
-        kwargs['driver'] = 'Gtiff'
-        kwargs['compress'] = 'LZW'
-        with rasterio.open(str(output_file), 'w', **kwargs) as dst:
-            dst.write_band(1, band)
+def resample_angles(sz_path, sa_path, vz_path, va_path):
+    print('Resampling angle bands ...')
+    band_sz = resample_raster(sz_path, 1/2).flatten()
+    band_sa = resample_raster(sa_path, 1/2).flatten()
+    band_vz = resample_raster(vz_path, 1/2).flatten()
+    band_va = resample_raster(va_path, 1/2).flatten()
+
+    return band_sz, band_sa, band_vz, band_va
+
+
+def sentinel_model(sz_path, sa_path, vz_path, va_path, SAFEL2A):
+    ### Sentinel-2 data set ###
+    out_dir = os.path.join(SAFEL2A, 'GRANULE', os.path.join(os.listdir(os.path.join(SAFEL2A,'GRANULE/'))[0], 'HARMONIZED_DATA/'))
+    os.makedirs(out_dir, exist_ok=True)
+    satsen = os.path.basename(SAFEL2A)[0:3]
+    print('SatSen: {}'.format(satsen))
+
+    img_dir = os.path.join(SAFEL2A, 'GRANULE', os.path.join(os.listdir(os.path.join(SAFEL2A,'GRANULE/'))[0], 'IMG_DATA/R10m/'))
+    bands10m = ['B02','B03','B04']
+    band_sz, band_sa, band_vz, band_va, = load_10m_angles(sz_path, sa_path, vz_path, va_path)
+    processNBAR(img_dir, bands10m, band_sz, band_sa, band_vz, band_va, satsen, out_dir)
+
+    img_dir = os.path.join(SAFEL2A, 'GRANULE', os.path.join(os.listdir(os.path.join(SAFEL2A,'GRANULE/'))[0], 'IMG_DATA/R20m/'))
+    bands20m = ['B8A','B11','B12']
+    band_sz, band_sa, band_vz, band_va = resample_angles(sz_path, sa_path, vz_path, va_path)
+    processNBAR(img_dir, bands20m, band_sz, band_sa, band_vz, band_va, satsen, out_dir)

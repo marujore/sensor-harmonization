@@ -20,8 +20,7 @@ def sentinel_NBAR(SAFEL1C, SAFEL2A):
     print('Generating Angles from {} ...'.format(SAFEL1C))
     sz_path, sa_path, vz_path, va_path = sentinel2_angle_bands.gen_s2_ang(SAFEL1C)
     print('Harmonization ...')
-    sentinel2_harmonization_model.sentinel_input(sz_path, sa_path, vz_path, va_path, SAFEL2A)
-    #bandpass
+    sentinel2_harmonization_model.sentinel_model(sz_path, sa_path, vz_path, va_path, SAFEL2A)
 
 
 def main():
