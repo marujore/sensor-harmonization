@@ -1,10 +1,7 @@
-# Created by Rennan Marujo - rennanmarujo@gmail.com 
-
 import sys
 import time
 
 import sentinel2_angle_bands
-import sentinel2_bandpass
 import sentinel2_harmonization_model
 
 

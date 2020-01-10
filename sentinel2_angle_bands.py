@@ -1,7 +1,3 @@
-#!/usr/bin/env python
-
-# Created by Rennan Marujo - rennanmarujo@gmail.com 
-
 import numpy
 import os
 import xml.etree.ElementTree as ET
@@ -172,6 +168,7 @@ def generate_anglebands(XMLfile):
 
     del tmp_ds
 
+
 def resample_anglebands(ang_matrix, imgref, filename):
     src_ds = gdal.Open(imgref)
     src_ds.GetRasterBand(1).SetNoDataValue(numpy.nan)
@@ -204,6 +201,7 @@ def resample_anglebands(ang_matrix, imgref, filename):
     del src_ds
     del tmp_ds
     del dst_ds
+
 
 def generate_resampled_anglebands(XMLfile):
     path = os.path.split(XMLfile)[0]
