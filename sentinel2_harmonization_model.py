@@ -105,32 +105,6 @@ def CalculateKernels(tv, ti, phi):
     return resultsArray
 
 
-def calc_refl_noround(pars, vzn, szn, raa):
-    nbarkerval = CalculateKernels(vzn*DE2RA, szn*DE2RA, raa*DE2RA)
-    ref = nbarkerval.dot(pars)
-
-    return ref
-
-
-def NBAR_calculate_global_perband(band, band_sz, band_sa, band_vz, band_va, b):
-    sensor_input = band
-    sensor_output = band
-    notnan_index = ~numpy.isnan(band)
-    if (numpy.any(notnan_index)):
-        ### Applying scale factor on angle bands
-        solar_zenith = numpy.divide(band_sz, 100)
-        view_zenith = numpy.divide(band_vz, 100)
-        relative_azimuth = numpy.divide(numpy.subtract(band_va, band_sa), 100)
-        solar_zenith_output = numpy.copy(solar_zenith)
-
-        srf1 = calc_refl_noround(pars_array[b,:].T, view_zenith, solar_zenith, relative_azimuth)
-        srf0 = calc_refl_noround(pars_array[b,:].T, numpy.zeros(len(view_zenith) ), solar_zenith_output, numpy.zeros(len(view_zenith)))
-        ratio = numpy.ravel(numpy.divide(srf0, srf1).T)
-        sensor_output = numpy.multiply(ratio, sensor_input).astype(numpy.int16)
-
-    return sensor_output
-
-
 def bandpassHLS_1_4(img, band, satsen):
     print('Applying bandpass band {} satsen {}'.format(band, satsen))
     #Skakun2018 coefficients
@@ -185,9 +159,47 @@ def bandpassHLS_1_4(img, band, satsen):
     return img
 
 
+def calc_kernels(vzn, szn, raa):
+    nbarkerval = CalculateKernels(vzn*DE2RA, szn*DE2RA, raa*DE2RA)
+    return nbarkerval
+
+
+def calculate_global_kernels(band_sz, band_sa, band_vz, band_va):
+    ### Applying scale factor on angle bands
+    solar_zenith = numpy.divide(band_sz, 100)
+    view_zenith = numpy.divide(band_vz, 100)
+    relative_azimuth = numpy.divide(numpy.subtract(band_va, band_sa), 100)
+    solar_zenith_output = numpy.copy(solar_zenith)
+    kernel = calc_kernels(view_zenith, solar_zenith, relative_azimuth)
+    refkernel = calc_kernels(numpy.zeros(len(view_zenith) ), solar_zenith_output, numpy.zeros(len(view_zenith)))
+
+    return kernel, refkernel
+
+
+def mult_par_kernel(pars, nbarkerval):
+    ref = nbarkerval.dot(pars)
+    return ref
+
+
+def NBAR_calculate_global_perband(band, kernel, refkernel, b):
+    sensor_input = band
+    sensor_output = band
+    notnan_index = ~numpy.isnan(band)
+    if (numpy.any(notnan_index)):
+        srf1 = mult_par_kernel(pars_array[b,:].T, kernel)
+        srf0 = mult_par_kernel(pars_array[b,:].T, refkernel)
+        ratio = numpy.ravel(numpy.divide(srf0, srf1).T)
+        sensor_output = numpy.multiply(ratio, sensor_input).astype(numpy.int16)
+
+    return sensor_output
+
+
 def processNBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, out_dir):
     pars_array_index = {'B02': 0, 'B03': 1, 'B04': 2, 'B8A': 3, 'B11': 4, 'B12': 5} 
     imgs = os.listdir(img_dir)
+
+    kernel, refkernel = calculate_global_kernels(band_sz, band_sa, band_vz, band_va)
+
     for b in bands:
         print('Harmonization band {}'.format(b))
         r = re.compile('.*_{}_*'.format(b))
@@ -203,7 +215,7 @@ def processNBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, out_
         band_one = band.flatten()
 
         print("Producing NBAR band {} ({})...".format(b, pars_array_index[b]))
-        band_one = NBAR_calculate_global_perband(band_one, band_sz, band_sa, band_vz, band_va, pars_array_index[b])
+        band_one = NBAR_calculate_global_perband(band_one, kernel, refkernel, pars_array_index[b])
 
         if (satsen == 'S2A') or (satsen == 'S2B'):
             band_one = bandpassHLS_1_4(band_one, b, satsen)

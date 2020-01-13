@@ -7,15 +7,11 @@ import sys
 
 from osgeo import gdal, osr, ogr
 
-if len(sys.argv) < 2:
-    print('ERROR: usage: <path to SAFE>')
-    sys.exit()
-
 ################################################################################
 ## Generate Sentinel Angle view bands
 ################################################################################
 
-def get_tileid( XML_File ):
+def get_tileid(XML_File):
     tile_id = ""
     # Parse the XML file 
     tree = ET.parse(XML_File)
@@ -28,11 +24,11 @@ def get_tileid( XML_File ):
 
     for segment in geninfo:
         if segment.tag == 'TILE_ID':
-            tile_id = segment.text.strip()    
+            tile_id = segment.text.strip()
     return(tile_id)
 
 
-def get_sun_angles( XML_File ):
+def get_sun_angles(XML_File):
     solar_zenith_values = numpy.empty((23,23,)) * numpy.nan #initiates matrix
     solar_azimuth_values = numpy.empty((23,23,)) * numpy.nan
 
@@ -77,7 +73,7 @@ def get_sun_angles( XML_File ):
     return (solar_zenith_values, solar_azimuth_values)
 
 
-def get_sensor_angles( XML_File ):
+def get_sensor_angles(XML_File):
     numband = 13
     sensor_zenith_values = numpy.empty((numband,23,23)) * numpy.nan #initiates matrix
     sensor_azimuth_values = numpy.empty((numband,23,23)) * numpy.nan
@@ -249,15 +245,3 @@ def gen_s2_ang(SAFEfile):
     ### Generates resampled anglebands (to 10m)
     sz_path, sa_path, vz_path, va_path = generate_resampled_anglebands(xml)
     return sz_path, sa_path, vz_path, va_path
-
-
-def main(SAFEfile):
-    gen_s2_ang(SAFEfile)
-
-
-if __name__ == '__main__':
-    start = time.time()
-    main(sys.argv[1])
-    end = time.time()
-    print("Duration time: {}".format(end - start))
-    print("END :]")
