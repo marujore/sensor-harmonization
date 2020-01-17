@@ -9,7 +9,6 @@ import rasterio
 import re
 import time
 
-from rasterio.enums import Resampling
 
 # Coeffients in  Roy, D. P., Zhang, H. K., Ju, J., Gomez-Dans, J. L., Lewis, P. E., Schaaf, C. B., Sun Q., Li J., Huang H., & Kovalskyy, V. (2016). 
 # A general method to normalize Landsat reflectance data to nadir BRDF adjusted reflectance. 
@@ -194,17 +193,16 @@ def NBAR_calculate_global_perband(band, kernel, refkernel, b):
     return sensor_output
 
 
-def processNBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, out_dir):
-    pars_array_index = {'B02': 0, 'B03': 1, 'B04': 2, 'B8A': 3, 'B11': 4, 'B12': 5} 
+def processNBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, out_dir):
     imgs = os.listdir(img_dir)
 
     kernel, refkernel = calculate_global_kernels(band_sz, band_sa, band_vz, band_va)
 
     for b in bands:
         print('Harmonization band {}'.format(b))
-        r = re.compile('.*_{}_*'.format(b))
+        r = re.compile('.*_{}.*'.format(b))
         input_file = list(filter(r.match, imgs))[0]
-        output_file = out_dir + input_file[0:-4] + '_NBAR_py.tif'
+        output_file = out_dir + input_file[0:-4] + '_NBAR.tif'
 
         print('Reading input data ...')
         with rasterio.open(img_dir + input_file) as dataset:
@@ -222,84 +220,11 @@ def processNBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, out_
 
         dims = band.shape
         band = band_one.astype(numpy.int16).reshape((dims[0], dims[1]))
-        # band[mask] = nodata
+        if mask.any():
+            band[mask] = nodata
 
         kwargs['dtype'] = numpy.int16
         kwargs['driver'] = 'Gtiff'
         kwargs['compress'] = 'LZW'
         with rasterio.open(str(output_file), 'w', **kwargs) as dst:
             dst.write_band(1, band)
-
-
-def load_10m_angles(sz_path, sa_path, vz_path, va_path):
-    print('Loading angle bands ...')
-    with rasterio.open(sz_path) as dataset:
-        band_sz = dataset.read(1)
-    with rasterio.open(sa_path) as dataset:
-        band_sa = dataset.read(1)
-    with rasterio.open(vz_path) as dataset:
-        band_vz = dataset.read(1)
-    with rasterio.open(va_path) as dataset:
-        band_va = dataset.read(1)
-    band_sz = band_sz.flatten()
-    band_sa = band_sa.flatten()
-    band_vz = band_vz.flatten()
-    band_va = band_va.flatten()
-
-    return band_sz, band_sa, band_vz, band_va
-
-
-def resample_raster(img_path, upscale_factor = 1/2, out_path = None):
-    with rasterio.open(img_path) as dataset:
-        # resample data to target shape
-        data = dataset.read(
-            out_shape=(
-                dataset.count,
-                int(dataset.width * upscale_factor),
-                int(dataset.height * upscale_factor)
-            ),
-            resampling=Resampling.average
-        )
-        kwargs = dataset.meta
-
-        # scale image transform
-        transform = dataset.transform * dataset.transform.scale(
-            (dataset.width / data.shape[-2]),
-            (dataset.height / data.shape[-1])
-        )
-
-        kwargs['width'] = data.shape[1]
-        kwargs['height'] = data.shape[2]
-        kwargs['transform'] = transform
-        if out_path is not None:
-            with rasterio.open(out_path, 'w', **kwargs) as dst:
-                dst.write_band(1, data[0])
-        return data[0]
-
-
-def resample_angles(sz_path, sa_path, vz_path, va_path):
-    print('Resampling angle bands ...')
-    band_sz = resample_raster(sz_path, 1/2).flatten()
-    band_sa = resample_raster(sa_path, 1/2).flatten()
-    band_vz = resample_raster(vz_path, 1/2).flatten()
-    band_va = resample_raster(va_path, 1/2).flatten()
-
-    return band_sz, band_sa, band_vz, band_va
-
-
-def sentinel_model(sz_path, sa_path, vz_path, va_path, SAFEL2A):
-    ### Sentinel-2 data set ###
-    out_dir = os.path.join(SAFEL2A, 'GRANULE', os.path.join(os.listdir(os.path.join(SAFEL2A,'GRANULE/'))[0], 'HARMONIZED_DATA/'))
-    os.makedirs(out_dir, exist_ok=True)
-    satsen = os.path.basename(SAFEL2A)[0:3]
-    print('SatSen: {}'.format(satsen))
-
-    img_dir = os.path.join(SAFEL2A, 'GRANULE', os.path.join(os.listdir(os.path.join(SAFEL2A,'GRANULE/'))[0], 'IMG_DATA/R10m/'))
-    bands10m = ['B02','B03','B04']
-    band_sz, band_sa, band_vz, band_va, = load_10m_angles(sz_path, sa_path, vz_path, va_path)
-    processNBAR(img_dir, bands10m, band_sz, band_sa, band_vz, band_va, satsen, out_dir)
-
-    img_dir = os.path.join(SAFEL2A, 'GRANULE', os.path.join(os.listdir(os.path.join(SAFEL2A,'GRANULE/'))[0], 'IMG_DATA/R20m/'))
-    bands20m = ['B8A','B11','B12']
-    band_sz, band_sa, band_vz, band_va = resample_angles(sz_path, sa_path, vz_path, va_path)
-    processNBAR(img_dir, bands20m, band_sz, band_sa, band_vz, band_va, satsen, out_dir)
