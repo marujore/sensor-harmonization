@@ -1,7 +1,9 @@
+# Python Native
 import glob
 import os
 import re
 
+# Local import
 import harmonization_model
 import utils
 

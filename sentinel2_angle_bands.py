@@ -1,9 +1,10 @@
-import numpy
+# Python Native
 import os
 import xml.etree.ElementTree as ET
-import time
 import glob
-import sys
+
+# 3rdparty
+import numpy
 
 from osgeo import gdal, osr, ogr
 

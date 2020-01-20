@@ -3,11 +3,13 @@
 # An algorithm for the retrieval of albedo from space using semiempirical BRDF models. 
 # IEEE Transactions on Geoscience and Remote Sensing, 38(2), 977-998.
 
-import numpy
+# Python Native
 import os
-import rasterio
 import re
-import time
+
+# 3rdparty
+import numpy
+import rasterio
 
 
 # Coeffients in  Roy, D. P., Zhang, H. K., Ju, J., Gomez-Dans, J. L., Lewis, P. E., Schaaf, C. B., Sun Q., Li J., Huang H., & Kovalskyy, V. (2016). 

@@ -1,5 +1,7 @@
+# Python Native
 import os
 
+# Local import
 import sentinel2_angle_bands
 import harmonization_model
 import utils
