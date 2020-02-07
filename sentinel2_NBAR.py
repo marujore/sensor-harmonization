@@ -1,6 +1,6 @@
 # Python Native
 import os
-
+import rasterio
 # Local import
 import sentinel2_angle_bands
 import harmonization_model
