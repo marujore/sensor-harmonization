@@ -195,7 +195,7 @@ def NBAR_calculate_global_perband(band, kernel, refkernel, b):
     return sensor_output
 
 
-def processNBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, out_dir):
+def process_NBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, out_dir):
     imgs = os.listdir(img_dir)
 
     kernel, refkernel = calculate_global_kernels(band_sz, band_sa, band_vz, band_va)

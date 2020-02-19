@@ -1,9 +1,9 @@
 # Python Native
 import glob
+import logging
 import os
 import re
-
-from shutil import copy
+import shutil
 
 # Local import
 import harmonization_model
@@ -12,7 +12,7 @@ import utils
 
 def load_landsat_angles(productdir):
     img_list = [f for f in glob.glob(productdir + "/*.tif", recursive=True)]
-    print('Load Landsat Angles')
+    logging.info('Load Landsat Angles')
     pattern = re.compile('.*_solar_zenith_.*')
     sz_path = list(filter(pattern.match, img_list))[0]
     pattern = re.compile('.*_solar_azimuth_.*')
@@ -35,12 +35,12 @@ def landsat_NBAR(sz_path, sa_path, vz_path, va_path, productdir, target_dir):
     band_sa = utils.load_img(sa_path)
     band_vz = utils.load_img(vz_path)
     band_va = utils.load_img(va_path)
-    print('Harmonization ...')
-    harmonization_model.processNBAR(productdir, bands10m, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
+    logging.info('Harmonization ...')
+    harmonization_model.process_NBAR(productdir, bands10m, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
 
 
 def landsat_harmonize(productdir, target_dir = None):
-    print('Loading Angles from {} ...'.format(productdir))
+    logging.info('Loading Angles from {} ...'.format(productdir))
     sz_path, sa_path, vz_path, va_path = load_landsat_angles(productdir)
 
     if target_dir is None:
@@ -53,4 +53,6 @@ def landsat_harmonize(productdir, target_dir = None):
     pattern = re.compile('.*pixel_qa.*')
     img_list = [f for f in glob.glob(productdir + "/*.tif", recursive=True)]
     qa_path = list(filter(pattern.match, img_list))[0]
-    copy(qa_path, target_dir)
+    shutil.copy(qa_path, target_dir)
+
+    return target_dir

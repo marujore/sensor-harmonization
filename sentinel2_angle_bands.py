@@ -6,7 +6,7 @@ import glob
 # 3rdparty
 import numpy
 
-from osgeo import gdal, osr, ogr
+from osgeo import gdal#, osr, ogr
 
 ################################################################################
 ## Generate Sentinel Angle view bands
