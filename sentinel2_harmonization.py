@@ -15,13 +15,13 @@ import utils
 
 def sentinel_NBAR(sz_path, sa_path, vz_path, va_path, SAFEL2A, target_dir):
     ### Sentinel-2 data set ###
-    pars_array_index = {'B02': 0, 'B03': 1, 'B04': 2, 'B8A': 3, 'B11': 4, 'B12': 5}
+    pars_array_index = {'B02': 0, 'B03': 1, 'B04': 2, 'B08': 3, 'B8A': 3, 'B11': 4, 'B12': 5}
 
     satsen = os.path.basename(SAFEL2A)[0:3]
     logging.info('SatSen: {}'.format(satsen))
 
     img_dir = os.path.join(SAFEL2A, 'GRANULE', os.path.join(os.listdir(os.path.join(SAFEL2A,'GRANULE/'))[0], 'IMG_DATA/R10m/'))
-    bands10m = ['B02','B03','B04']
+    bands10m = ['B02','B03','B04','B08']
     band_sz = utils.load_img(sz_path)
     band_sa = utils.load_img(sa_path)
     band_vz = utils.load_img(vz_path)
@@ -51,7 +51,6 @@ def sentinel_harmonize(SAFEL1C, SAFEL2A, target_dir=None):
     pattern = re.compile('.*SCL.*')
     img_list = [f for f in glob.glob(os.path.join(SAFEL2A, 'GRANULE', os.path.join(os.listdir(os.path.join(SAFEL2A,'GRANULE/'))[0], 'IMG_DATA/R20m/')) + "/*.jp2", recursive=True)]
     qa_filepath = list(filter(pattern.match, img_list))[0]
-
     #Convert jp2 to tiff
     src_ds = gdal.Open(qa_filepath)
     os.system('gdal_translate -of Gtiff ' + qa_filepath + ' ' + target_dir + '/' + os.path.basename(qa_filepath)[:-4] + '.tif')
