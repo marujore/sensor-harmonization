@@ -39,6 +39,20 @@ def landsat_NBAR(sz_path, sa_path, vz_path, va_path, productdir, target_dir):
     harmonization_model.process_NBAR(productdir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
 
 
+def lasrc_NBAR(solarang_path, viewang_path, productdir, target_dir):
+    ### Landsat-8 data set ###
+    satsen = 'LC8'
+    bands = ['sr_band2','sr_band3','sr_band4', 'sr_band5','sr_band6','sr_band7']
+    pars_array_index = {'sr_band2': 0, 'sr_band3': 1, 'sr_band4': 2, 'sr_band5': 3, 'sr_band6': 4, 'sr_band7': 5}
+
+    band_sa = utils.load_img(solarang_path, 1)
+    band_va = utils.load_img(viewang_path, 1)
+    band_sz = utils.load_img(solarang_path, 2)
+    band_vz = utils.load_img(viewang_path, 2)
+    logging.info('Harmonization ...')
+    harmonization_model.process_NBAR(productdir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
+
+
 def landsat_harmonize(productdir, target_dir = None):
     logging.info('Loading Angles from {} ...'.format(productdir))
     sz_path, sa_path, vz_path, va_path = load_landsat_angles(productdir)

@@ -3,10 +3,10 @@ import rasterio
 from rasterio.enums import Resampling
 
 
-def load_img(img_path):
+def load_img(img_path, layer=1):
     print('Loading {} ...'.format(img_path))
     with rasterio.open(img_path) as dataset:
-        img = dataset.read(1).flatten()
+        img = dataset.read(layer).flatten()
 
     return img
 

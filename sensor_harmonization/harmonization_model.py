@@ -204,7 +204,7 @@ def process_NBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, par
         print('Harmonization band {}'.format(b))
         r = re.compile('.*_{}.*tif$|.*_{}.*jp2$'.format(b,b))
         input_file = list(filter(r.match, imgs))[0]
-        output_file = out_dir + input_file[0:-4] + '_NBAR.tif'
+        output_file = out_dir + input_file[0:-4].replace('_sr_', '_NBAR_') + '.tif'
 
         print('Reading input data ...')
         with rasterio.open(img_dir + input_file) as dataset:
