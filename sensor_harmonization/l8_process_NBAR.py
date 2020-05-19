@@ -7,22 +7,21 @@ import time
 import landsat8_harmonization
 
 
-if len(sys.argv) < 5:
-    print('ERROR: usage: sz_path, sa_path, vz_path, va_path, productdir, target_dir')
+if len(sys.argv) < 3:
+    print('ERROR: usage: productdir, target_dir')
     sys.exit()
 
 
-def main(solarang_path, viewang_path, productdir, target_dir):
+def main(productdir, target_dir):
     os.makedirs(target_dir, exist_ok=True)
 
-    landsat8_harmonization.lasrc_NBAR(solarang_path, viewang_path, productdir, target_dir)
+    landsat8_harmonization.landsat_harmonize(productdir, target_dir)
 
     return
 
 
-
 if __name__ == '__main__':
     start = time.time()
-    main(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
+    main(sys.argv[1], sys.argv[2])
     end = time.time()
     print("Duration time: {}".format(end - start))

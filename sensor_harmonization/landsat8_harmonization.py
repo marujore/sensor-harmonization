@@ -39,8 +39,8 @@ def landsat_NBAR(sz_path, sa_path, vz_path, va_path, productdir, target_dir):
     harmonization_model.process_NBAR(productdir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
 
 
-def lasrc_NBAR(solarang_path, viewang_path, productdir, target_dir):
-    ### Landsat-8 data set ###
+def NBAR_grouped_ang(solarang_path, viewang_path, productdir, target_dir):
+    ### This function is used when angle bands are multlayer (azimuth and zenith layer on the same .tif) ###
     satsen = 'LC8'
     bands = ['sr_band2','sr_band3','sr_band4', 'sr_band5','sr_band6','sr_band7']
     pars_array_index = {'sr_band2': 0, 'sr_band3': 1, 'sr_band4': 2, 'sr_band5': 3, 'sr_band6': 4, 'sr_band7': 5}
@@ -66,7 +66,15 @@ def landsat_harmonize(productdir, target_dir = None):
     #COPY quality band
     pattern = re.compile('.*pixel_qa.*')
     img_list = [f for f in glob.glob(productdir + "/*.tif", recursive=True)]
-    qa_path = list(filter(pattern.match, img_list))[0]
-    shutil.copy(qa_path, target_dir)
+    matching_pattern = list(filter(pattern.match, img_list))
+    if len(matching_pattern) != 0:
+        qa_path = matching_pattern[0]
+        shutil.copy(qa_path, target_dir)
+    pattern = re.compile('.*Fmask4.*')
+    img_list = [f for f in glob.glob(productdir + "/*.tif", recursive=True)]
+    matching_pattern = list(filter(pattern.match, img_list))
+    if len(matching_pattern) != 0:
+        qa_path = list(filter(pattern.match, img_list))[0]
+        shutil.copy(qa_path, target_dir)
 
     return target_dir
