@@ -107,7 +107,7 @@ def CalculateKernels(tv, ti, phi):
 
 
 def bandpassHLS_1_4(img, band, satsen):
-    print('Applying bandpass band {} satsen {}'.format(band, satsen))
+    print('Applying bandpass band {} satsen {}'.format(band, satsen), flush=True)
     #Skakun2018 coefficients
     if (satsen == 'S2A'):
         if (band == 'B01'): #ultraBlue/coastal #MODIS don't have this band
@@ -201,12 +201,13 @@ def process_NBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, par
     kernel, refkernel = calculate_global_kernels(band_sz, band_sa, band_vz, band_va)
 
     for b in bands:
-        print('Harmonization band {}'.format(b))
-        r = re.compile('.*_{}.*tif$|.*_{}.*jp2$'.format(b,b))
+        print('Harmonization band {}'.format(b), flush=True)
+        r = re.compile('.*_{}.tif$|.*_{}.*jp2$'.format(b,b))
+        print(list(filter(r.match, imgs)))
         input_file = list(filter(r.match, imgs))[0]
         output_file = out_dir + input_file[0:-4].replace('_sr_', '_NBAR_') + '.tif'
 
-        print('Reading input data ...')
+        print('Reading input data ...', flush=True)
         with rasterio.open(img_dir + input_file) as dataset:
             band = dataset.read(1)
             nodata = dataset.nodata
@@ -214,7 +215,7 @@ def process_NBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, par
             kwargs = dataset.meta
         band_one = band.flatten()
 
-        print("Producing NBAR band {} ({})...".format(b, pars_array_index[b]))
+        print("Producing NBAR band {} ({})...".format(b, pars_array_index[b]), flush=True)
         band_one = NBAR_calculate_global_perband(band_one, kernel, refkernel, pars_array_index[b])
 
         if (satsen == 'S2A') or (satsen == 'S2B'):
