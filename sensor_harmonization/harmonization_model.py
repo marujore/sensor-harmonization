@@ -6,7 +6,6 @@
 # Python Native
 import os
 import re
-
 # 3rdparty
 import numpy
 import rasterio
@@ -17,28 +16,59 @@ import rasterio
 # Remote Sensing of Environment, 176, 255-271.
 pars_array = numpy.matrix('774 372 79; 1306 580 178; 1690 574 227; 3093 1535 330; 3430 1154 453; 2658 639 387')
 
-brratio = 1.0
-hbratio = 2.0
-DE2RA = 0.0174532925199432956
+brratio = 1.0 #shape parameter
+hbratio = 2.0 #crown relative height
+DE2RA = 0.0174532925199432956 #Degree to Radian proportion
 
 def GetPhaang(cos1, cos2, sin1, sin2, cos3):
+    """
+        Get the angle between sun and sensor.
+
+        Parameters:
+            cos1 (array): cosine of the solar zenith angle.
+            cos2 (array): cosine of the view zenith angle.
+            sin1 (array): sine of the solar zenith angle.
+            sin2 (array): sine of the view zenith angle.
+            cos3 (array): cosine of the relative azimuth angle.
+        Returns: 
+            dict: cosine, angle and sine of the angle between sun and sensor.
+    """
     cosres = cos1 * cos2 + sin1 * sin2 * cos3
-    res = numpy.arccos( numpy.maximum(-1., numpy.minimum(1., cosres ) ) )
+    res = numpy.arccos(numpy.maximum(-1., numpy.minimum(1., cosres)))
     sinres = numpy.sin(res)
 
-    return {"cosres": cosres, "res": res, "sinres": sinres}
+    return {'cosres': cosres, 'res': res, 'sinres': sinres}
 
 
 def GetDistance(tan1, tan2, cos3):
+    """
+        Get angle distance.
+
+        Parameters:
+            tan1 (array): cosine of the solar zenith angle.
+            tan2 (array): cosine of the view zenith angle.
+            cos3 (array): cosine of the relative azimuth angle.
+        Returns: 
+            array: sun and sensor angle distance.
+    """
     temp = tan1 * tan1 + tan2 * tan2 - 2. * tan1 * tan2 * cos3
-    res  = numpy.sqrt( numpy.maximum(0., temp ))
+    res  = numpy.sqrt(numpy.maximum(0., temp))
 
     return res
 
 
 def GetpAngles(brratio, tan1):
+    """
+        Get sine, cosine and tangent of a tangent given a shape parameter.
+
+        Parameters:
+            brratio (float): cosine of the solar zenith angle.
+            tan1 (array): cosine of the view zenith angle.
+        Returns: 
+            dict: sine, cosine and tangent.
+    """
     tanp = brratio * tan1
-    tanp[ tanp < 0 ] = 0
+    tanp[tanp < 0] = 0
     angp = numpy.arctan(tanp)
     sinp = numpy.sin(angp)
     cosp = numpy.cos(angp)
@@ -47,12 +77,26 @@ def GetpAngles(brratio, tan1):
 
 
 def GetOverlap(hbratio, distance, cos1, cos2, tan1, tan2, sin3):
-    temp = 1. / cos1 + 1. / cos2
-    cost = hbratio * numpy.sqrt(distance * distance + tan1 * tan1 * tan2 * tan2 * sin3 * sin3) / temp
+    """
+        Get angle overlap.
+
+        Parameters:
+            hbratio (float): crown relative height.
+            distance (dict): sun and sensor angle distance (sine, cosine and tangent).
+            cos1 (array): cosine of the solar zenith angle.
+            cos2 (array): cosine of the view zenith angle.
+            tan1 (array): tangent of the solar zenith angle.
+            tan2 (array): tangent of the view zenith angle.
+            sin3 (array): sine of the relative azimuth angle.
+        Returns: 
+            dict: overlap and secant sum of solar zenith, view zenith angle.
+    """
+    temp = 1./cos1 + 1./cos2
+    cost = hbratio * numpy.sqrt(distance * distance + tan1 * tan1 * tan2 * tan2 * sin3 * sin3)/temp
     cost = numpy.maximum(-1., numpy.minimum(1., cost))
     tvar = numpy.arccos(cost)
     sint = numpy.sin(tvar)
-    overlap = 1. / numpy.pi * (tvar - sint * cost) * (temp)
+    overlap = 1./numpy.pi * (tvar - sint * cost) * (temp)
     overlap = numpy.maximum(0., overlap)
 
     return {"overlap": overlap, "temp": temp}
@@ -107,6 +151,16 @@ def CalculateKernels(tv, ti, phi):
 
 
 def bandpassHLS_1_4(img, band, satsen):
+    """
+        Bandpass function applyed to Sentinel-2 data as followed in HLS 1.4 products (Claverie et. al, 2018 - The Harmonized Landsat and Sentinel-2 surface reflectance data set).
+
+        Parameters:
+            img (array): Array containing image pixel values.
+            band (str): Band that will be processed, which can be 'B02','B03','B04','B8A','B01','B11' or 'B12'.
+            satsen (str): Satellite sensor, which can be 'S2A' or 'S2B'.
+        Returns: 
+            array: Array containing image pixel values bandpassed.
+    """
     print('Applying bandpass band {} satsen {}'.format(band, satsen), flush=True)
     #Skakun2018 coefficients
     if (satsen == 'S2A'):
