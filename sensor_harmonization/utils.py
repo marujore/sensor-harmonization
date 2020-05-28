@@ -1,5 +1,6 @@
+# 3rdparty
 import rasterio
-
+# Local import
 from rasterio.enums import Resampling
 
 

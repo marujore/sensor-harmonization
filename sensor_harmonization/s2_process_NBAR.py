@@ -3,8 +3,7 @@ import logging
 import os
 import sys
 import time
-# 3rdparty
-#harmonization package
+#local imports
 import sentinel2_harmonization
 
 

@@ -1,13 +1,14 @@
+# Python Native
 import logging
 import time
-
+# Local import
 import landsat8_harmonization
 
 
 start = time.time()
 
-imgs = ['/home/marujo/Downloads/LC08_L1TP_221069_20190103_20190130_01_T1']
-target_dir = '/home/marujo/Downloads/Output/'
+imgs = ['/home/marujo/tests/radiometry/NBAR/input/LC08_L1TP_227066_20160731_20170322_01_T1']
+target_dir = '/home/marujo/tests/radiometry/NBAR/output/LC08_L1TP_227066_20160731_20170322_01_T1'
 
 for img_path in imgs:
     logging.info(img_path)

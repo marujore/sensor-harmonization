@@ -2,10 +2,8 @@
 import os
 import xml.etree.ElementTree as ET
 import glob
-
 # 3rdparty
 import numpy
-
 from osgeo import gdal#, osr, ogr
 
 ################################################################################

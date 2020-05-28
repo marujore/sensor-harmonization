@@ -4,9 +4,8 @@ import logging
 import os
 import re
 import shutil
-
+# 3rdparty
 import gdal
-
 # Local import
 import sentinel2_angle_bands
 import harmonization_model
@@ -14,6 +13,17 @@ import utils
 
 
 def sentinel_NBAR(sz_path, sa_path, vz_path, va_path, SAFEL2A, target_dir):
+    """
+        Generate Sentinel-2 NBAR from Sen2cor.
+
+        Parameters:
+            sz_path (str): path to solar zenith angle band.
+            sa_path (str): path to solar azimuth angle band.
+            vz_path (str): path to view (sensor) zenith band.
+            va_path (str): path to view (sensor) angle band.
+            SAFEL2A (str): path to directory SAFEL2A.
+            target_dir (str): path to output result images.
+    """
     ### Sentinel-2 data set ###
     pars_array_index = {'B02': 0, 'B03': 1, 'B04': 2, 'B08': 3, 'B8A': 3, 'B11': 4, 'B12': 5}
 
@@ -36,7 +46,20 @@ def sentinel_NBAR(sz_path, sa_path, vz_path, va_path, SAFEL2A, target_dir):
     band_va = utils.load_img_resampled_to_half(va_path)
     harmonization_model.process_NBAR(img_dir, bands20m, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
 
+    return
+
+
 def sentinel_harmonize(SAFEL1C, SAFEL2A, target_dir=None):
+    """
+        Prepare Sentinel-2 NBAR from Sen2cor.
+
+        Parameters:
+            SAFEL1C (str): path to SAFEL1C directory.
+            SAFEL2A (str): path to SAFEL2A directory.
+            target_dir (str): path to output result images.
+        Returns:
+            str: path to folder containing result images.
+    """
     logging.info('Generating Angles from {} ...'.format(SAFEL1C))
     sz_path, sa_path, vz_path, va_path = sentinel2_angle_bands.gen_s2_ang(SAFEL1C)
 
@@ -62,6 +85,17 @@ def sentinel_harmonize(SAFEL1C, SAFEL2A, target_dir=None):
 
 
 def sentinel_NBAR_lasrc(sz_path, sa_path, vz_path, va_path, sr_dir, target_dir):
+    """
+        Generate Sentinel-2 NBAR from LaSRC.
+
+        Parameters:
+            sz_path (str): path to solar zenith angle band.
+            sa_path (str): path to solar azimuth angle band.
+            vz_path (str): path to view (sensor) zenith band.
+            va_path (str): path to view (sensor) angle band.
+            sr_dir (str): path to directory containing surface reflectance.
+            target_dir (str): path to output result images.
+    """
     ### Sentinel-2 data set ###
     pars_array_index = {'band2': 0, 'band3': 1, 'band4': 2, 'band8': 3, 'band8a': 3, 'band11': 4, 'band12': 5}
 
@@ -77,6 +111,16 @@ def sentinel_NBAR_lasrc(sz_path, sa_path, vz_path, va_path, sr_dir, target_dir):
 
 
 def sentinel_harmonize_lasrc(SAFEL1C, sr_dir, target_dir):
+    """
+        Prepare Sentinel-2 NBAR from LaSRC.
+
+        Parameters:
+            SAFEL1C (str): path to SAFEL1C directory.
+            sr_dir (str): path to directory containing surface reflectance.
+            target_dir (str): path to output result images.
+        Returns:
+            str: path to folder containing result images.
+    """
     print('Generating Angles from {} ...'.format(SAFEL1C), flush=True)
     sz_path, sa_path, vz_path, va_path = sentinel2_angle_bands.gen_s2_ang(SAFEL1C)
 

@@ -1,6 +1,7 @@
+# Python Native
 import logging
 import time
-
+# Local import
 import sentinel2_harmonization
 
 

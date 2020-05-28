@@ -30,7 +30,7 @@ def GetPhaang(cos1, cos2, sin1, sin2, cos3):
             sin1 (array): sine of the solar zenith angle.
             sin2 (array): sine of the view zenith angle.
             cos3 (array): cosine of the relative azimuth angle.
-        Returns: 
+        Returns:
             dict: cosine, angle and sine of the angle between sun and sensor.
     """
     cosres = cos1 * cos2 + sin1 * sin2 * cos3
@@ -48,7 +48,7 @@ def GetDistance(tan1, tan2, cos3):
             tan1 (array): cosine of the solar zenith angle.
             tan2 (array): cosine of the view zenith angle.
             cos3 (array): cosine of the relative azimuth angle.
-        Returns: 
+        Returns:
             array: sun and sensor angle distance.
     """
     temp = tan1 * tan1 + tan2 * tan2 - 2. * tan1 * tan2 * cos3
@@ -62,9 +62,9 @@ def GetpAngles(brratio, tan1):
         Get sine, cosine and tangent of a tangent given a shape parameter.
 
         Parameters:
-            brratio (float): cosine of the solar zenith angle.
-            tan1 (array): cosine of the view zenith angle.
-        Returns: 
+            brratio (float): shape parameter.
+            tan1 (array): tangent of the view zenith angle.
+        Returns:
             dict: sine, cosine and tangent.
     """
     tanp = brratio * tan1
@@ -88,7 +88,7 @@ def GetOverlap(hbratio, distance, cos1, cos2, tan1, tan2, sin3):
             tan1 (array): tangent of the solar zenith angle.
             tan2 (array): tangent of the view zenith angle.
             sin3 (array): sine of the relative azimuth angle.
-        Returns: 
+        Returns:
             dict: overlap and secant sum of solar zenith, view zenith angle.
     """
     temp = 1./cos1 + 1./cos2
@@ -102,17 +102,34 @@ def GetOverlap(hbratio, distance, cos1, cos2, tan1, tan2, sin3):
     return {"overlap": overlap, "temp": temp}
 
 
-def LiKernel(hbratio, brratio, tantv, tanti, sinphi, cosphi, SparseFlag, RecipFlag):
+def LiKernel(hbratio, brratio, tantv, tanti, sinphi, cosphi, SparseFlag=None, RecipFlag=None):
+    """
+        Computation of the geometric Li Kernel.
+
+        Parameters:
+            hbratio (float): crown relative height.
+            brratio (float): shape parameter.
+            tantv (array): tangent of the solar zenith angle.
+            tanti (array): tangent of the view zenith angle.
+            sinphi (array): sine of the relative azimuth angle.
+            cosphi (array): cosine of the relative azimuth angle.
+            SparseFlag (int): 1 will do li Sparce Kernel.
+            RecipFlag (int): 1 will do reciprocal Li Kernel.
+        Returns:
+            dict: overlap and secant sum of solar zenith, view zenith angle.
+    """
     GetpAnglesv = GetpAngles(brratio, tantv)
     GetpAnglesi = GetpAngles(brratio, tanti)
     phaang = GetPhaang(GetpAnglesv['cosp'], GetpAnglesi['cosp'], GetpAnglesv['sinp'], GetpAnglesi['sinp'], cosphi)
     distancep = GetDistance(GetpAnglesv['tanp'], GetpAnglesi['tanp'], cosphi)
     overlap = GetOverlap(hbratio, distancep, GetpAnglesv['cosp'], GetpAnglesi['cosp'], GetpAnglesv['tanp'], GetpAnglesi['tanp'], sinphi)
+    secThetav= 1./GetpAnglesv['cosp']
+    secThetas= 1./GetpAnglesi['cosp']
     if (SparseFlag):
         if (RecipFlag):
-            result = (overlap['overlap'] - overlap['temp']) + 1. / 2. * (1. + phaang['cosres']) / GetpAnglesv['cosp'] / GetpAnglesi['cosp']
+            result = (overlap['overlap'] - overlap['temp']) + 1. / 2. * (1. + phaang['cosres']) * secThetav *secThetas
         else:
-            result = overlap['overlap'] - overlap['temp'] + 1. / 2. * (1. + phaang['cosres']) / GetpAnglesv['cosp']
+            result = overlap['overlap'] - overlap['temp'] + 1. / 2. * (1. + phaang['cosres']) * secThetav
     else:
         if (RecipFlag):
             result = (1 + phaang['cosres']) / (GetpAnglesv['cosp'] * GetpAnglesi['cosp'] * (overlap['temp'] - overlap['overlap'])) - 2.
@@ -123,6 +140,17 @@ def LiKernel(hbratio, brratio, tantv, tanti, sinphi, cosphi, SparseFlag, RecipFl
 
 
 def CalculateKernels(tv, ti, phi):
+    """
+        .
+
+        Parameters:
+            band_sz (array): .
+            band_sa (array): .
+            band_vz (array): .
+            band_va (array): .
+        Returns:
+            : calculated kernels.
+    """
     resultsArray = numpy.empty([len(tv), 3])
     resultsArray[:] = numpy.nan
 
@@ -158,7 +186,7 @@ def bandpassHLS_1_4(img, band, satsen):
             img (array): Array containing image pixel values.
             band (str): Band that will be processed, which can be 'B02','B03','B04','B8A','B01','B11' or 'B12'.
             satsen (str): Satellite sensor, which can be 'S2A' or 'S2B'.
-        Returns: 
+        Returns:
             array: Array containing image pixel values bandpassed.
     """
     print('Applying bandpass band {} satsen {}'.format(band, satsen), flush=True)
@@ -214,35 +242,47 @@ def bandpassHLS_1_4(img, band, satsen):
     return img
 
 
-def calc_kernels(vzn, szn, raa):
-    nbarkerval = CalculateKernels(vzn*DE2RA, szn*DE2RA, raa*DE2RA)
-    return nbarkerval
-
-
 def calculate_global_kernels(band_sz, band_sa, band_vz, band_va):
+    """
+        Calculate kernels that will be used by all bands.
+
+        Parameters:
+            band_sz (array): solar zenith angle.
+            band_sa (array): solar azimuth angle.
+            band_vz (array): view (sensor) zenith angle.
+            band_va (array): view (sensor) azimuth angle.
+        Returns:
+            kernel (array), refkernel (array): calculated kernels for target and reference respectively.
+    """
     ### Applying scale factor on angle bands
-    solar_zenith = numpy.divide(band_sz, 100)
-    view_zenith = numpy.divide(band_vz, 100)
-    relative_azimuth = numpy.divide(numpy.subtract(band_va, band_sa), 100)
+    solar_zenith = numpy.divide(band_sz, 100)*DE2RA
+    view_zenith = numpy.divide(band_vz, 100)*DE2RA
+    relative_azimuth = numpy.divide(numpy.subtract(band_va, band_sa), 100)*DE2RA
     solar_zenith_output = numpy.copy(solar_zenith)
-    kernel = calc_kernels(view_zenith, solar_zenith, relative_azimuth)
-    refkernel = calc_kernels(numpy.zeros(len(view_zenith) ), solar_zenith_output, numpy.zeros(len(view_zenith)))
+    kernel = CalculateKernels(view_zenith, solar_zenith, relative_azimuth)
+    refkernel = CalculateKernels(numpy.zeros(len(view_zenith)), solar_zenith_output, numpy.zeros(len(view_zenith)))
 
     return kernel, refkernel
 
 
-def mult_par_kernel(pars, nbarkerval):
-    ref = nbarkerval.dot(pars)
-    return ref
+def NBAR_calculate_global_perband(arr, kernel, refkernel, b):
+    """
+        Computes Normalized BRDF Adjusted Reflectance (NBAR).
 
-
-def NBAR_calculate_global_perband(band, kernel, refkernel, b):
-    sensor_input = band
-    sensor_output = band
-    notnan_index = ~numpy.isnan(band)
+        Parameters:
+            arr (array): array containing image values.
+            kernel (array): target kernel array values.
+            refkernel (array): reference kernel array values.
+            b (int): band number.
+        Returns:
+            array: input image multiplyed by the c-factor.
+    """
+    sensor_input = arr
+    sensor_output = arr
+    notnan_index = ~numpy.isnan(arr)
     if (numpy.any(notnan_index)):
-        srf1 = mult_par_kernel(pars_array[b,:].T, kernel)
-        srf0 = mult_par_kernel(pars_array[b,:].T, refkernel)
+        srf0 = refkernel.dot(pars_array[b,:].T)
+        srf1 = kernel.dot(pars_array[b,:].T)
         ratio = numpy.ravel(numpy.divide(srf0, srf1).T)
         sensor_output = numpy.multiply(ratio, sensor_input).astype(numpy.int16)
 
@@ -250,6 +290,22 @@ def NBAR_calculate_global_perband(band, kernel, refkernel, b):
 
 
 def process_NBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, out_dir):
+    """
+        Prepare Normalized BRDF Adjusted Reflectance (NBAR).
+
+        Parameters:
+            img_dir (str): input directory.
+            bands (list): list of bands to process.
+            band_sz (array): solar zenith angle.
+            band_sa (array): solar azimuth angle.
+            band_vz (array): view (sensor) zenith angle.
+            band_va (array): view (sensor) azimuth angle.
+            satsen (str): satellite sensor (S2A or S2B), used for bandpass.
+            pars_array_index: band parameters coefficient index.
+            out_dir: output directory.
+        Returns:
+            dict: overlap and secant sum of solar zenith, view zenith angle.
+    """
     imgs = os.listdir(img_dir)
 
     kernel, refkernel = calculate_global_kernels(band_sz, band_sa, band_vz, band_va)
@@ -285,3 +341,5 @@ def process_NBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, par
         kwargs['compress'] = 'LZW'
         with rasterio.open(str(output_file), 'w', **kwargs) as dst:
             dst.write_band(1, band)
+
+    return
