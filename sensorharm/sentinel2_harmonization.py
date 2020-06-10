@@ -5,11 +5,12 @@ import os
 import re
 import shutil
 # 3rdparty
-import gdal
+import s2angs
+from osgeo import gdal
 # Local import
-import sentinel2_angle_bands
-import harmonization_model
-import utils
+# import .sentinel2_angle_bands
+import .harmonization_model
+import .utils
 
 
 def sentinel_NBAR(sz_path, sa_path, vz_path, va_path, SAFEL2A, target_dir):
@@ -122,7 +123,8 @@ def sentinel_harmonize_lasrc(SAFEL1C, sr_dir, target_dir):
             str: path to folder containing result images.
     """
     print('Generating Angles from {} ...'.format(SAFEL1C), flush=True)
-    sz_path, sa_path, vz_path, va_path = sentinel2_angle_bands.gen_s2_ang(SAFEL1C)
+    # sz_path, sa_path, vz_path, va_path = sentinel2_angle_bands.gen_s2_ang(SAFEL1C)
+    sz_path, sa_path, vz_path, va_path = s2angs.gen_s2_ang(SAFEL1C)
 
     os.makedirs(target_dir, exist_ok=True)
 

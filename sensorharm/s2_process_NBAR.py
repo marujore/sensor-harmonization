@@ -4,7 +4,7 @@ import os
 import sys
 import time
 #local imports
-import sentinel2_harmonization
+import .sentinel2_harmonization
 
 
 if len(sys.argv) < 4:

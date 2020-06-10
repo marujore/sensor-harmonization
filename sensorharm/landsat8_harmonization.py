@@ -5,8 +5,8 @@ import os
 import re
 import shutil
 # Local import
-import harmonization_model
-import utils
+import .harmonization_model
+import .utils
 
 
 def get_landsat_angles(productdir):
