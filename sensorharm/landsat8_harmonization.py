@@ -5,8 +5,8 @@ import os
 import re
 import shutil
 # Local import
-import .harmonization_model
-import .utils
+from .harmonization_model import process_NBAR
+from .utils import load_img
 
 
 def get_landsat_angles(productdir):
@@ -49,12 +49,12 @@ def landsat_NBAR(sz_path, sa_path, vz_path, va_path, productdir, target_dir):
     bands = ['sr_band2','sr_band3','sr_band4', 'sr_band5','sr_band6','sr_band7']
     pars_array_index = {'sr_band2': 0, 'sr_band3': 1, 'sr_band4': 2, 'sr_band5': 3, 'sr_band6': 4, 'sr_band7': 5}
 
-    band_sz = utils.load_img(sz_path)
-    band_sa = utils.load_img(sa_path)
-    band_vz = utils.load_img(vz_path)
-    band_va = utils.load_img(va_path)
+    band_sz = load_img(sz_path)
+    band_sa = load_img(sa_path)
+    band_vz = load_img(vz_path)
+    band_va = load_img(va_path)
     logging.info('Harmonization ...')
-    harmonization_model.process_NBAR(productdir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
+    process_NBAR(productdir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
 
     return
 
@@ -74,12 +74,12 @@ def NBAR_grouped_ang(solarang_path, viewang_path, productdir, target_dir):
     bands = ['sr_band2','sr_band3','sr_band4', 'sr_band5','sr_band6','sr_band7']
     pars_array_index = {'sr_band2': 0, 'sr_band3': 1, 'sr_band4': 2, 'sr_band5': 3, 'sr_band6': 4, 'sr_band7': 5}
 
-    band_sa = utils.load_img(solarang_path, 1)
-    band_va = utils.load_img(viewang_path, 1)
-    band_sz = utils.load_img(solarang_path, 2)
-    band_vz = utils.load_img(viewang_path, 2)
+    band_sa = load_img(solarang_path, 1)
+    band_va = load_img(viewang_path, 1)
+    band_sz = load_img(solarang_path, 2)
+    band_vz = load_img(viewang_path, 2)
     logging.info('Harmonization ...')
-    harmonization_model.process_NBAR(productdir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
+    process_NBAR(productdir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
 
     return
 

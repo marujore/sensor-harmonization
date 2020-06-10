@@ -9,8 +9,8 @@ import s2angs
 from osgeo import gdal
 # Local import
 # import .sentinel2_angle_bands
-import .harmonization_model
-import .utils
+from .harmonization_model import process_NBAR
+from .utils import load_img
 
 
 def sentinel_NBAR(sz_path, sa_path, vz_path, va_path, SAFEL2A, target_dir):
@@ -33,19 +33,19 @@ def sentinel_NBAR(sz_path, sa_path, vz_path, va_path, SAFEL2A, target_dir):
 
     img_dir = os.path.join(SAFEL2A, 'GRANULE', os.path.join(os.listdir(os.path.join(SAFEL2A,'GRANULE/'))[0], 'IMG_DATA/R10m/'))
     bands10m = ['B02','B03','B04','B08']
-    band_sz = utils.load_img(sz_path)
-    band_sa = utils.load_img(sa_path)
-    band_vz = utils.load_img(vz_path)
-    band_va = utils.load_img(va_path)
-    harmonization_model.process_NBAR(img_dir, bands10m, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
+    band_sz = load_img(sz_path)
+    band_sa = load_img(sa_path)
+    band_vz = load_img(vz_path)
+    band_va = load_img(va_path)
+    process_NBAR(img_dir, bands10m, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
 
     img_dir = os.path.join(SAFEL2A, 'GRANULE', os.path.join(os.listdir(os.path.join(SAFEL2A,'GRANULE/'))[0], 'IMG_DATA/R20m/'))
     bands20m = ['B8A','B11','B12']
-    band_sz = utils.load_img_resampled_to_half(sz_path)
-    band_sa = utils.load_img_resampled_to_half(sa_path)
-    band_vz = utils.load_img_resampled_to_half(vz_path)
-    band_va = utils.load_img_resampled_to_half(va_path)
-    harmonization_model.process_NBAR(img_dir, bands20m, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
+    band_sz = load_img_resampled_to_half(sz_path)
+    band_sa = load_img_resampled_to_half(sa_path)
+    band_vz = load_img_resampled_to_half(vz_path)
+    band_va = load_img_resampled_to_half(va_path)
+    process_NBAR(img_dir, bands20m, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
 
     return
 
@@ -104,11 +104,11 @@ def sentinel_NBAR_lasrc(sz_path, sa_path, vz_path, va_path, sr_dir, target_dir):
     print('SatSen: {}'.format(satsen), flush=True)
 
     bands = ['band2','band3','band4','band8', 'band8a','band11','band12']
-    band_sz = utils.load_img(sz_path)
-    band_sa = utils.load_img(sa_path)
-    band_vz = utils.load_img(vz_path)
-    band_va = utils.load_img(va_path)
-    harmonization_model.process_NBAR(sr_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
+    band_sz = load_img(sz_path)
+    band_sa = load_img(sa_path)
+    band_vz = load_img(vz_path)
+    band_va = load_img(va_path)
+    process_NBAR(sr_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
 
 
 def sentinel_harmonize_lasrc(SAFEL1C, sr_dir, target_dir):
