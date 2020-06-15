@@ -13,7 +13,7 @@ from .harmonization_model import process_NBAR
 from .utils import load_img
 
 
-def sentinel_NBAR(sz_path, sa_path, vz_path, va_path, SAFEL2A, target_dir):
+def sentinel_NBAR_SAFE(sz_path, sa_path, vz_path, va_path, SAFEL2A, target_dir):
     """
         Generate Sentinel-2 NBAR from Sen2cor.
 
@@ -50,7 +50,7 @@ def sentinel_NBAR(sz_path, sa_path, vz_path, va_path, SAFEL2A, target_dir):
     return
 
 
-def sentinel_harmonize(SAFEL1C, SAFEL2A, target_dir=None):
+def sentinel_harmonize_SAFE(SAFEL1C, SAFEL2A, target_dir=None):
     """
         Prepare Sentinel-2 NBAR from Sen2cor.
 
@@ -62,14 +62,14 @@ def sentinel_harmonize(SAFEL1C, SAFEL2A, target_dir=None):
             str: path to folder containing result images.
     """
     logging.info('Generating Angles from {} ...'.format(SAFEL1C))
-    sz_path, sa_path, vz_path, va_path = sentinel2_angle_bands.gen_s2_ang(SAFEL1C)
+    sz_path, sa_path, vz_path, va_path = s2angs.gen_s2_ang(SAFEL1C)
 
     if target_dir is None:
         target_dir = os.path.join(SAFEL2A, 'GRANULE', os.path.join(os.listdir(os.path.join(SAFEL2A,'GRANULE/'))[0], 'HARMONIZED_DATA/'))
     os.makedirs(target_dir, exist_ok=True)
 
     logging.info('Harmonization ...')
-    sentinel_NBAR(sz_path, sa_path, vz_path, va_path, SAFEL2A, target_dir)
+    sentinel_NBAR_SAFE(sz_path, sa_path, vz_path, va_path, SAFEL2A, target_dir)
 
     #COPY quality band
     pattern = re.compile('.*SCL.*')
@@ -85,7 +85,7 @@ def sentinel_harmonize(SAFEL1C, SAFEL2A, target_dir=None):
     return target_dir
 
 
-def sentinel_NBAR_lasrc(sz_path, sa_path, vz_path, va_path, sr_dir, target_dir):
+def sentinel_NBAR(sz_path, sa_path, vz_path, va_path, sr_dir, target_dir):
     """
         Generate Sentinel-2 NBAR from LaSRC.
 
@@ -111,7 +111,7 @@ def sentinel_NBAR_lasrc(sz_path, sa_path, vz_path, va_path, sr_dir, target_dir):
     process_NBAR(sr_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
 
 
-def sentinel_harmonize_lasrc(SAFEL1C, sr_dir, target_dir):
+def sentinel_harmonize(SAFEL1C, sr_dir, target_dir):
     """
         Prepare Sentinel-2 NBAR from LaSRC.
 
@@ -129,6 +129,6 @@ def sentinel_harmonize_lasrc(SAFEL1C, sr_dir, target_dir):
     os.makedirs(target_dir, exist_ok=True)
 
     print('Harmonization ...', flush=True)
-    sentinel_NBAR_lasrc(sz_path, sa_path, vz_path, va_path, sr_dir, target_dir)
+    sentinel_NBAR(sz_path, sa_path, vz_path, va_path, sr_dir, target_dir)
 
     return target_dir
