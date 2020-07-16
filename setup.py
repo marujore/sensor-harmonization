@@ -7,6 +7,7 @@ install_requires = [
     'numpy',
     'rasterio',
     's2angs @ git+https://github.com/marujore/sentinel2_angle_bands',
+    'xarray'
 ]
 
 setup(

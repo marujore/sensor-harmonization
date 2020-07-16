@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import shutil
+import xarray
 # Local import
 from .harmonization_model import process_NBAR
 from .utils import load_img
@@ -49,12 +50,8 @@ def landsat_NBAR(sz_path, sa_path, vz_path, va_path, productdir, target_dir):
     bands = ['sr_band2','sr_band3','sr_band4', 'sr_band5','sr_band6','sr_band7']
     pars_array_index = {'sr_band2': 0, 'sr_band3': 1, 'sr_band4': 2, 'sr_band5': 3, 'sr_band6': 4, 'sr_band7': 5}
 
-    band_sz = load_img(sz_path)
-    band_sa = load_img(sa_path)
-    band_vz = load_img(vz_path)
-    band_va = load_img(va_path)
     logging.info('Harmonization ...')
-    process_NBAR(productdir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
+    process_NBAR(productdir, bands, sz_path, sa_path, vz_path, va_path, satsen, pars_array_index, target_dir)
 
     return
 

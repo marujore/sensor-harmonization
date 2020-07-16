@@ -1,12 +1,25 @@
 # 3rdparty
 import rasterio
+import xarray
 from rasterio.enums import Resampling
 
 
-def load_img(img_path, layer=1):
+def load_img(img_path, chunk_x=100, chunk_y=100):
+    """
+            Load image into an xarray Data Array.
+
+            Parameters:
+                img_path (str): path to input file.
+                chunk_x (int): chunk size in x.
+                chunk_y (int): chunk size in y.
+            Returns:
+                img (xarray): xarray.
+        """
     print('Loading {} ...'.format(img_path))
     with rasterio.open(img_path) as dataset:
-        img = dataset.read(layer).flatten()
+        img = dataset.read(1).flatten()
+
+    # img = xarray.open_rasterio(img_path, chunks={'band': 1, 'x': chunk_x, 'y': chunk_y})
 
     return img
 
