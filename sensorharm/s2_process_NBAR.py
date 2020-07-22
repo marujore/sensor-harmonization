@@ -3,19 +3,19 @@ import logging
 import os
 import sys
 import time
-#local imports
-import .sentinel2_harmonization
+# Sensorharm
+from .sentinel2_harmonization import sentinel_harmonize, sentinel_harmonize_SAFE
 
 
 if len(sys.argv) < 4:
-    print('ERROR: usage: productdir, sr_dir, target_dir')
+    print('ERROR: usage: SAFEL1C, sr_dir, target_dir')
     sys.exit()
 
 
-def main(productdir, sr_dir, target_dir):
+def main(SAFEL1C, sr_dir, target_dir):
     os.makedirs(target_dir, exist_ok=True)
 
-    sentinel2_harmonization.sentinel_harmonize_lasrc(productdir, sr_dir, target_dir)
+    sentinel_harmonize(SAFEL1C, sr_dir, target_dir)
 
     return
 

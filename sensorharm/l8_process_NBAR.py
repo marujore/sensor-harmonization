@@ -3,8 +3,8 @@ import logging
 import os
 import sys
 import time
-#local imports
-import landsat8_harmonization
+# Sensorharm
+from .landsat8_harmonization import landsat_harmonize
 
 
 if len(sys.argv) < 3:
@@ -15,7 +15,7 @@ if len(sys.argv) < 3:
 def main(productdir, target_dir):
     os.makedirs(target_dir, exist_ok=True)
 
-    landsat8_harmonization.landsat_harmonize(productdir, target_dir)
+    landsat_harmonize(productdir, target_dir)
 
     return
 
