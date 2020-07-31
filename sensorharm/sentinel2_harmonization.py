@@ -3,17 +3,14 @@ import glob
 import logging
 import os
 import re
-import shutil
 # 3rdparty
 import s2angs
 from osgeo import gdal
-# Local import
-# import .sentinel2_angle_bands
+# Sensorharm
 from .harmonization_model import process_NBAR
-from .utils import load_img
 
 
-def sentinel_NBAR_SAFE(sz_path, sa_path, vz_path, va_path, SAFEL2A, target_dir):
+def sentinel_nbar_safe(sz_path, sa_path, vz_path, va_path, SAFEL2A, target_dir):
     """
         Generate Sentinel-2 NBAR from Sen2cor.
 
@@ -25,27 +22,17 @@ def sentinel_NBAR_SAFE(sz_path, sa_path, vz_path, va_path, SAFEL2A, target_dir):
             SAFEL2A (str): path to directory SAFEL2A.
             target_dir (str): path to output result images.
     """
-    ### Sentinel-2 data set ###
-    pars_array_index = {'B02': 0, 'B03': 1, 'B04': 2, 'B08': 3, 'B8A': 3, 'B11': 4, 'B12': 5}
-
+    # Sentinel-2 data set
     satsen = os.path.basename(SAFEL2A)[0:3]
     logging.info('SatSen: {}'.format(satsen))
 
     img_dir = os.path.join(SAFEL2A, 'GRANULE', os.path.join(os.listdir(os.path.join(SAFEL2A,'GRANULE/'))[0], 'IMG_DATA/R10m/'))
-    bands10m = ['B02','B03','B04','B08']
-    band_sz = load_img(sz_path)
-    band_sa = load_img(sa_path)
-    band_vz = load_img(vz_path)
-    band_va = load_img(va_path)
-    process_NBAR(img_dir, bands10m, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
+    bands10m = ['B02', 'B03', 'B04', 'B08']
+    process_NBAR(img_dir, bands10m, sz_path, sa_path, vz_path, va_path, satsen, target_dir)
 
     img_dir = os.path.join(SAFEL2A, 'GRANULE', os.path.join(os.listdir(os.path.join(SAFEL2A,'GRANULE/'))[0], 'IMG_DATA/R20m/'))
-    bands20m = ['B8A','B11','B12']
-    band_sz = load_img_resampled_to_half(sz_path)
-    band_sa = load_img_resampled_to_half(sa_path)
-    band_vz = load_img_resampled_to_half(vz_path)
-    band_va = load_img_resampled_to_half(va_path)
-    process_NBAR(img_dir, bands20m, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
+    bands20m = ['B8A', 'B11', 'B12']
+    process_NBAR(img_dir, bands20m, sz_path, sa_path, vz_path, va_path, satsen, target_dir)
 
     return
 
@@ -69,7 +56,7 @@ def sentinel_harmonize_SAFE(SAFEL1C, SAFEL2A, target_dir=None):
     os.makedirs(target_dir, exist_ok=True)
 
     logging.info('Harmonization ...')
-    sentinel_NBAR_SAFE(sz_path, sa_path, vz_path, va_path, SAFEL2A, target_dir)
+    sentinel_nbar_safe(sz_path, sa_path, vz_path, va_path, SAFEL2A, target_dir)
 
     #COPY quality band
     pattern = re.compile('.*SCL.*')
@@ -85,7 +72,7 @@ def sentinel_harmonize_SAFE(SAFEL1C, SAFEL2A, target_dir=None):
     return target_dir
 
 
-def sentinel_NBAR(sz_path, sa_path, vz_path, va_path, sr_dir, target_dir):
+def sentinel_nbar(sz_path, sa_path, vz_path, va_path, sr_dir, target_dir):
     """
         Generate Sentinel-2 NBAR from LaSRC.
 
@@ -97,18 +84,16 @@ def sentinel_NBAR(sz_path, sa_path, vz_path, va_path, sr_dir, target_dir):
             sr_dir (str): path to directory containing surface reflectance.
             target_dir (str): path to output result images.
     """
-    ### Sentinel-2 data set ###
-    pars_array_index = {'band2': 0, 'band3': 1, 'band4': 2, 'band8': 3, 'band8a': 3, 'band11': 4, 'band12': 5}
+    # Sentinel-2 data set
 
     satsen = os.path.basename(sr_dir)[0:3]
     print('SatSen: {}'.format(satsen), flush=True)
 
-    bands = ['band2','band3','band4','band8', 'band8a','band11','band12']
-    band_sz = load_img(sz_path)
-    band_sa = load_img(sa_path)
-    band_vz = load_img(vz_path)
-    band_va = load_img(va_path)
-    process_NBAR(sr_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
+    bands = ['band2', 'band3', 'band4', 'band8', 'band8a', 'band11', 'band12']
+
+    process_NBAR(sr_dir, bands, sz_path, sa_path, vz_path, va_path, satsen, target_dir)
+
+    return
 
 
 def sentinel_harmonize(SAFEL1C, sr_dir, target_dir):
@@ -123,12 +108,11 @@ def sentinel_harmonize(SAFEL1C, sr_dir, target_dir):
             str: path to folder containing result images.
     """
     print('Generating Angles from {} ...'.format(SAFEL1C), flush=True)
-    # sz_path, sa_path, vz_path, va_path = sentinel2_angle_bands.gen_s2_ang(SAFEL1C)
     sz_path, sa_path, vz_path, va_path = s2angs.gen_s2_ang(SAFEL1C)
 
     os.makedirs(target_dir, exist_ok=True)
 
     print('Harmonization ...', flush=True)
-    sentinel_NBAR(sz_path, sa_path, vz_path, va_path, sr_dir, target_dir)
+    sentinel_nbar(sz_path, sa_path, vz_path, va_path, sr_dir, target_dir)
 
     return target_dir

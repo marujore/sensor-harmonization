@@ -4,9 +4,8 @@ import logging
 import os
 import re
 import shutil
-# Local import
+# Sensorharm
 from .harmonization_model import process_NBAR
-from .utils import load_img
 
 
 def get_landsat_angles(productdir):
@@ -32,58 +31,6 @@ def get_landsat_angles(productdir):
     return sz_path, sa_path, vz_path, va_path
 
 
-def landsat_NBAR(sz_path, sa_path, vz_path, va_path, productdir, target_dir):
-    """
-        Generate Landsat NBAR.
-
-        Parameters:
-            sz_path (str): path to solar zenith angle band.
-            sa_path (str): path to solar azimuth angle band.
-            vz_path (str): path to view (sensor) zenith band.
-            va_path (str): path to view (sensor) angle band.
-            productdir (str): path to directory containing angle bands.
-            target_dir (str): path to output result images.
-    """
-    ### Landsat-8 data set ###
-    satsen = 'LC8'
-    bands = ['sr_band2','sr_band3','sr_band4', 'sr_band5','sr_band6','sr_band7']
-    pars_array_index = {'sr_band2': 0, 'sr_band3': 1, 'sr_band4': 2, 'sr_band5': 3, 'sr_band6': 4, 'sr_band7': 5}
-
-    band_sz = load_img(sz_path)
-    band_sa = load_img(sa_path)
-    band_vz = load_img(vz_path)
-    band_va = load_img(va_path)
-    logging.info('Harmonization ...')
-    process_NBAR(productdir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
-
-    return
-
-
-def NBAR_grouped_ang(solarang_path, viewang_path, productdir, target_dir):
-    """
-        Generate Landsat NBAR using multiband angles.
-
-        Parameters:
-            solarang_path (str): path to solar angle bands.
-            viewang_path (str): path to view (sensor) angle bands.
-            productdir (str): path to directory containing angle bands.
-            target_dir (str): path to output result images.
-    """
-    ### This function is used when angle bands are multlayer (azimuth and zenith layer on the same .tif) ###
-    satsen = 'LC8'
-    bands = ['sr_band2','sr_band3','sr_band4', 'sr_band5','sr_band6','sr_band7']
-    pars_array_index = {'sr_band2': 0, 'sr_band3': 1, 'sr_band4': 2, 'sr_band5': 3, 'sr_band6': 4, 'sr_band7': 5}
-
-    band_sa = load_img(solarang_path, 1)
-    band_va = load_img(viewang_path, 1)
-    band_sz = load_img(solarang_path, 2)
-    band_vz = load_img(viewang_path, 2)
-    logging.info('Harmonization ...')
-    process_NBAR(productdir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, target_dir)
-
-    return
-
-
 def landsat_harmonize(productdir, target_dir=None):
     """
         Prepare Landsat NBAR.
@@ -94,16 +41,20 @@ def landsat_harmonize(productdir, target_dir=None):
         Returns:
             str: path to folder containing result images.
     """
-    logging.info('Loading Angles from {} ...'.format(productdir))
+    print('Loading Angles from {} ...'.format(productdir))
     sz_path, sa_path, vz_path, va_path = get_landsat_angles(productdir)
 
     if target_dir is None:
         target_dir = os.path.join(productdir, 'HARMONIZED_DATA/')
     os.makedirs(target_dir, exist_ok=True)
 
-    landsat_NBAR(sz_path, sa_path, vz_path, va_path, productdir, target_dir)
+    satsen = 'LC8'
+    bands = ['sr_band2', 'sr_band3', 'sr_band4', 'sr_band5', 'sr_band6', 'sr_band7']
 
-    #COPY quality band
+    print('Harmonization ...')
+    process_NBAR(productdir, bands, sz_path, sa_path, vz_path, va_path, satsen, target_dir)
+
+    # Copy quality band
     pattern = re.compile('.*pixel_qa.*')
     img_list = [f for f in glob.glob(productdir + "/*.tif", recursive=True)]
     matching_pattern = list(filter(pattern.match, img_list))

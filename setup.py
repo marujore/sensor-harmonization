@@ -6,7 +6,7 @@ install_requires = [
     # 'GDAL',
     'numpy',
     'rasterio',
-    's2angs @ git+https://github.com/marujore/sentinel2_angle_bands',
+    's2angs @ git+https://github.com/marujore/sentinel2_angle_bands'
 ]
 
 setup(

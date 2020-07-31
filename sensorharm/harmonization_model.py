@@ -4,178 +4,289 @@
 # IEEE Transactions on Geoscience and Remote Sensing, 38(2), 977-998.
 
 # Python Native
+import logging
 import os
 import re
 # 3rdparty
 import numpy
+import numpy.ma
 import rasterio
+from rasterio._io import Window
+from rasterio.enums import Resampling
 
 
-# Coeffients in  Roy, D. P., Zhang, H. K., Ju, J., Gomez-Dans, J. L., Lewis, P. E., Schaaf, C. B., Sun Q., Li J., Huang H., & Kovalskyy, V. (2016). 
-# A general method to normalize Landsat reflectance data to nadir BRDF adjusted reflectance. 
+br_ratio = 1.0  # shape parameter
+hb_ratio = 2.0  # crown relative height
+DE2RA = 0.0174532925199432956  # Degree to Radian proportion
+
+# Coeffients in  Roy, D. P., Zhang, H. K., Ju, J., Gomez-Dans, J. L., Lewis, P. E., Schaaf, C. B., Sun Q., Li J., Huang H., & Kovalskyy, V. (2016).
+# A general method to normalize Landsat reflectance data to nadir BRDF adjusted reflectance.
 # Remote Sensing of Environment, 176, 255-271.
-pars_array = numpy.matrix('774 372 79; 1306 580 178; 1690 574 227; 3093 1535 330; 3430 1154 453; 2658 639 387')
+brdf_coefficients = {
+    'blue': {
+        'fiso': 774,
+        'fgeo': 79,
+        'fvol': 372
+    },
+    'green': {
+        'fiso': 1306,
+        'fgeo': 178,
+        'fvol': 580
+    },
+    'red': {
+        'fiso': 1690,
+        'fgeo': 227,
+        'fvol': 574
+    },
+    'nir': {
+        'fiso': 3093,
+        'fgeo': 330,
+        'fvol': 1535
+    },
+    'swir1': {
+        'fiso': 3430,
+        'fgeo': 453,
+        'fvol': 1154
+    },
+    'swir2': {
+        'fiso': 2658,
+        'fgeo': 387,
+        'fvol': 639
+    }
+}
 
-brratio = 1.0 #shape parameter
-hbratio = 2.0 #crown relative height
-DE2RA = 0.0174532925199432956 #Degree to Radian proportion
 
-def GetPhaang(cos1, cos2, sin1, sin2, cos3):
+def consult_band(b, satsen):
     """
-        Get the angle between sun and sensor.
+        Consult band common name.
 
         Parameters:
-            cos1 (array): cosine of the solar zenith angle.
-            cos2 (array): cosine of the view zenith angle.
-            sin1 (array): sine of the solar zenith angle.
-            sin2 (array): sine of the view zenith angle.
-            cos3 (array): cosine of the relative azimuth angle.
+            b (str): band name.
+            satsen (str): satellite sensor.
+
         Returns:
-            dict: cosine, angle and sine of the angle between sun and sensor.
+            str: band common name.
     """
-    cosres = cos1 * cos2 + sin1 * sin2 * cos3
-    res = numpy.arccos(numpy.maximum(-1., numpy.minimum(1., cosres)))
-    sinres = numpy.sin(res)
+    if satsen == 'LC8':
+        common_name = {'sr_band1': 'coastal', 'sr_band2':'blue', 'sr_band3':'green', 'sr_band4':'red', 'sr_band5':'nir',
+                       'sr_band6':'swir1', 'sr_band7':'swir2'}
+        return common_name[b]
+    if satsen == 'S2A' or satsen == 'S2B':
+        common_name = {'sr_band1': 'coastal', 'sr_band2': 'blue', 'sr_band3': 'green', 'sr_band4': 'red',
+                       'sr_band3': 'green', 'sr_band4': 'rededge1', 'sr_band5': 'rededge2', 'sr_band6': 'rededge3',
+                       'sr_band8': 'nir', 'sr_band8a': 'nir', 'sr_band11': 'swir1', 'sr_band12': 'swir2'}
+        return common_name[b]
+    return
 
-    return {'cosres': cosres, 'res': res, 'sinres': sinres}
 
-
-def GetDistance(tan1, tan2, cos3):
+def load_raster_resampled(img_path, resample_factor=1/2, window=None):
     """
-        Get angle distance.
+        Load and resample image.
 
         Parameters:
-            tan1 (array): cosine of the solar zenith angle.
-            tan2 (array): cosine of the view zenith angle.
-            cos3 (array): cosine of the relative azimuth angle.
+            img_path (str): path to image.
+            resample_factor (str): resample factor.
+            window (Window): window.
+
         Returns:
-            array: sun and sensor angle distance.
+            raster: numpy.array.
+        """
+    # Resample the window
+    res_window = Window(window.col_off / resample_factor, window.row_off / resample_factor,
+                        window.width / resample_factor, window.height / resample_factor)
+    with rasterio.open(img_path) as dataset:
+        profile = dataset.profile
+        try:
+            raster = dataset.read(
+                # 1,
+                out_shape=(
+                    1,
+                    int(window.height),
+                    int(window.width),
+                ),
+                resampling=Resampling.average,
+                masked=True,
+                window=res_window
+            )
+        except:
+            logging.info("BREAK RES WINDOW {}".format(res_window))
+            return
+        return raster[0]
+
+
+def load_img(img_path, window=None):
     """
-    temp = tan1 * tan1 + tan2 * tan2 - 2. * tan1 * tan2 * cos3
-    res  = numpy.sqrt(numpy.maximum(0., temp))
-
-    return res
-
-
-def GetpAngles(brratio, tan1):
-    """
-        Get sine, cosine and tangent of a tangent given a shape parameter.
+        Load image into an xarray Data Array.
 
         Parameters:
-            brratio (float): shape parameter.
-            tan1 (array): tangent of the view zenith angle.
+            img_path (str): path to input file.
+            window (Window): rasterio window.
+
         Returns:
-            dict: sine, cosine and tangent.
+            raster: numpy.array.
+        """
+    logging.debug('Loading {} ...'.format(img_path))
+    with rasterio.open(img_path) as dataset:
+        raster = dataset.read(1, masked=True, window=window)
+
+    return raster
+
+
+def prepare_angles(sz_path, sa_path, vz_path, va_path, satsen, band, window=None):
     """
-    tanp = brratio * tan1
-    tanp[tanp < 0] = 0
-    angp = numpy.arctan(tanp)
-    sinp = numpy.sin(angp)
-    cosp = numpy.cos(angp)
-
-    return {"sinp": sinp, "cosp": cosp, "tanp": tanp}
-
-
-def GetOverlap(hbratio, distance, cos1, cos2, tan1, tan2, sin3):
-    """
-        Get angle overlap.
+        Scale angle bands, convert from radians, calculate relative azimuth angle band.
 
         Parameters:
-            hbratio (float): crown relative height.
-            distance (dict): sun and sensor angle distance (sine, cosine and tangent).
-            cos1 (array): cosine of the solar zenith angle.
-            cos2 (array): cosine of the view zenith angle.
-            tan1 (array): tangent of the solar zenith angle.
-            tan2 (array): tangent of the view zenith angle.
-            sin3 (array): sine of the relative azimuth angle.
+            sz_path (str): path to solar zenith file.
+            sa_path (str): path to solar azimuth file.
+            vz_path (str): path to view (sensor) zenith file.
+            va_path (str): path to view (sensor) azimuth file.
+            satsen (str): satellite sensor.
+            band (str): band.
+            window (Window): rasterio window.
+
         Returns:
-            dict: overlap and secant sum of solar zenith, view zenith angle.
+            raster, raster, raster: numpy.array (view_zenith, solar_zenith, relative_azimuth).
     """
-    temp = 1./cos1 + 1./cos2
-    cost = hbratio * numpy.sqrt(distance * distance + tan1 * tan1 * tan2 * tan2 * sin3 * sin3)/temp
-    cost = numpy.maximum(-1., numpy.minimum(1., cost))
-    tvar = numpy.arccos(cost)
-    sint = numpy.sin(tvar)
-    overlap = 1./numpy.pi * (tvar - sint * cost) * (temp)
-    overlap = numpy.maximum(0., overlap)
+    if satsen == 'S2A' or satsen == 'S2B':
+        if band in ['sr_band8a', 'sr_band11', 'sr_band12']: # ['B8A','B11','B12']:
+            print("Resampling angle bands")
+            relative_azimuth = numpy.divide(
+                numpy.subtract(load_raster_resampled(va_path, 0.5, window),
+                               load_raster_resampled(sa_path, 0.5, window)),
+                100) * DE2RA
+            solar_zenith = numpy.divide(load_raster_resampled(sz_path, 0.5, window), 100) * DE2RA
+            view_zenith = numpy.divide(load_raster_resampled(vz_path, 0.5, window), 100) * DE2RA
 
-    return {"overlap": overlap, "temp": temp}
+            return view_zenith, solar_zenith, relative_azimuth
+
+    relative_azimuth = numpy.divide(numpy.subtract(load_img(va_path, window), load_img(sa_path, window)), 100) * DE2RA
+    solar_zenith = numpy.divide(load_img(sz_path, window), 100) * DE2RA
+    view_zenith = numpy.divide(load_img(vz_path, window), 100) * DE2RA
+
+    return view_zenith, solar_zenith, relative_azimuth
 
 
-def LiKernel(hbratio, brratio, tantv, tanti, sinphi, cosphi, SparseFlag=None, RecipFlag=None):
+def sec(angle):
     """
-        Computation of the geometric Li Kernel.
+        Calculate secant.
 
         Parameters:
-            hbratio (float): crown relative height.
-            brratio (float): shape parameter.
-            tantv (array): tangent of the solar zenith angle.
-            tanti (array): tangent of the view zenith angle.
-            sinphi (array): sine of the relative azimuth angle.
-            cosphi (array): cosine of the relative azimuth angle.
-            SparseFlag (int): 1 will do li Sparce Kernel.
-            RecipFlag (int): 1 will do reciprocal Li Kernel.
+            angle (numpy array): raster band of angle.
+
         Returns:
-            dict: overlap and secant sum of solar zenith, view zenith angle.
+            secant : numpy.array.
     """
-    GetpAnglesv = GetpAngles(brratio, tantv)
-    GetpAnglesi = GetpAngles(brratio, tanti)
-    phaang = GetPhaang(GetpAnglesv['cosp'], GetpAnglesi['cosp'], GetpAnglesv['sinp'], GetpAnglesi['sinp'], cosphi)
-    distancep = GetDistance(GetpAnglesv['tanp'], GetpAnglesi['tanp'], cosphi)
-    overlap = GetOverlap(hbratio, distancep, GetpAnglesv['cosp'], GetpAnglesi['cosp'], GetpAnglesv['tanp'], GetpAnglesi['tanp'], sinphi)
-    secThetav= 1./GetpAnglesv['cosp']
-    secThetas= 1./GetpAnglesi['cosp']
-    if (SparseFlag):
-        if (RecipFlag):
-            result = (overlap['overlap'] - overlap['temp']) + 1. / 2. * (1. + phaang['cosres']) * secThetav *secThetas
-        else:
-            result = overlap['overlap'] - overlap['temp'] + 1. / 2. * (1. + phaang['cosres']) * secThetav
-    else:
-        if (RecipFlag):
-            result = (1 + phaang['cosres']) / (GetpAnglesv['cosp'] * GetpAnglesi['cosp'] * (overlap['temp'] - overlap['overlap'])) - 2.
-        else:
-            result = (1 + phaang['cosres']) / (GetpAnglesv['cosp'] * (overlap['temp'] - overlap['overlap'])) - 2.
-
-    return result
+    return 1./numpy.cos(angle) #numpy.divide(1./numpy.cos(angle))
 
 
-def CalculateKernels(tv, ti, phi):
+def calc_cos_t(hb_ratio, d, theta_s_i, theta_v_i, relative_azimuth):
     """
-        .
+        Calculate t cossine.
 
         Parameters:
-            band_sz (array): .
-            band_sa (array): .
-            band_vz (array): .
-            band_va (array): .
+            hb_ratio (int): h/b.
+            d (numpy array): d.
+            theta_s_i (numpy array): theta_s_i.
+            theta_v_i (numpy array): theta_v_i.
+            relative_azimuth (numpy array): relative_azimuth.
+
         Returns:
-            : calculated kernels.
+            cos_t : numpy.array.
     """
-    resultsArray = numpy.empty([len(tv), 3])
-    resultsArray[:] = numpy.nan
+    return hb_ratio * numpy.sqrt(d*d + numpy.power(numpy.tan(theta_s_i)*numpy.tan(theta_v_i)*numpy.sin(relative_azimuth), 2)) / (sec(theta_s_i) + sec(theta_v_i))
 
-    resultsArray[:, 0] = 1.
 
-    cosphi = numpy.cos(phi)
+def calc_d(theta_s_i, theta_v_i, relative_azimuth):
+    """
+        Calculate d.
 
-    costv = numpy.cos(tv)
-    costi = numpy.cos(ti)
-    sintv = numpy.sin(tv)
-    sinti = numpy.sin(ti)
-    phaang = GetPhaang(costv, costi, sintv, sinti, cosphi)
-    rosselement = (numpy.pi / 2. - phaang['res']) * phaang['cosres'] + phaang['sinres']
-    resultsArray[:, 1] = rosselement / (costi + costv) - numpy.pi / 4.
+        Parameters:
+            theta_s_i (numpy array): theta_s_i.
+            theta_v_i (numpy array): theta_v_i.
+            relative_azimuth (numpy array): relative_azimuth.
 
-    # /*finish rossthick kernal */
-    sinphi = numpy.sin(phi)
-    tantv = numpy.tan(tv)
-    tanti = numpy.tan(ti)
+        Returns:
+            d : numpy.array.
+    """
+    return numpy.sqrt(
+    numpy.tan(theta_s_i)*numpy.tan(theta_s_i) + numpy.tan(theta_v_i)*numpy.tan(theta_v_i) - 2*numpy.tan(theta_s_i)*numpy.tan(theta_v_i)*numpy.cos(relative_azimuth))
 
-    SparseFlag = 1
-    RecipFlag = 1
-    resultsArray[:, 2] = LiKernel(hbratio, brratio, tantv, tanti, sinphi, cosphi, SparseFlag, RecipFlag)
 
-    return resultsArray
+def calc_theta_i(angle, br_ratio):
+    """
+        Calculate calc_theta_i.
+
+        Parameters:
+            angle (numpy array): theta_s_i.
+            br_ratio (int): b/r.
+
+        Returns:
+            theta_i : numpy.array.
+    """
+    return numpy.arctan(br_ratio * numpy.tan(angle))
+
+
+def li_kernel(view_zenith, solar_zenith, relative_azimuth):
+    """
+        Calculate Li Kernel - Li X. and Strahler A. H., (1986) - Geometric-Optical Bidirectional Reflectance Modeling of a Conifer Forest Canopy.
+
+        Parameters:
+            view_zenith (numpy array): view zenith.
+            solar_zenith (numpy array): solar zenith.
+            relative_azimuth (numpy array): relative_azimuth.
+
+        Returns:
+            li_kernel : numpy.array.
+    """
+    #ref 1986
+    theta_s_i = calc_theta_i(solar_zenith, br_ratio)
+    theta_v_i = calc_theta_i(view_zenith, br_ratio)
+    d = calc_d(theta_s_i, theta_v_i, relative_azimuth)
+    cos_t = calc_cos_t(hb_ratio, d, theta_s_i, theta_v_i, relative_azimuth)
+    t = numpy.arccos(numpy.maximum(-1., numpy.minimum(1., cos_t)))
+    big_o = (1./numpy.pi)*(t-numpy.sin(t)*cos_t)*(sec(theta_v_i)*sec(theta_s_i))
+    cos_e_i = numpy.cos(theta_s_i)*numpy.cos(theta_v_i) + numpy.sin(theta_s_i)*numpy.sin(theta_v_i)*numpy.cos(relative_azimuth)
+
+    return big_o - sec(theta_s_i) - sec(theta_v_i) + 0.5*(1. + cos_e_i)*sec(theta_v_i)*sec(theta_s_i)
+
+
+def ross_kernel(view_zenith, solar_zenith, relative_azimuth):
+    """
+        Calculate Ross-Thick Kernel.
+
+        Parameters:
+            view_zenith (numpy array): view zenith.
+            solar_zenith (numpy array): solar zenith.
+            relative_azimuth (numpy array): relative_azimuth.
+
+        Returns:
+            ross_thick_kernel : numpy.array.
+    """
+    cos_e = numpy.cos(solar_zenith)*numpy.cos(view_zenith) + numpy.sin(solar_zenith)*numpy.sin(view_zenith)*numpy.cos(relative_azimuth)
+    e = numpy.arccos(cos_e)
+    return ((((numpy.pi / 2.) - e)*cos_e + numpy.sin(e)) / (numpy.cos(solar_zenith) + numpy.cos(view_zenith)) ) - (numpy.pi / 4)
+
+
+def calc_brf(view_zenith, solar_zenith, relative_azimuth, band_coef):
+    """
+        Calculate brf.
+
+        Parameters:
+            view_zenith (numpy array): view zenith.
+            solar_zenith (numpy array): solar zenith.
+            relative_azimuth (numpy array): relative_azimuth.
+            band_coef (float): MODIS band coefficient.
+
+        Returns:
+            brf : numpy.array.
+    """
+    logging.debug('Calculating Li Sparce Reciprocal Kernel')
+    li = li_kernel(view_zenith, solar_zenith, relative_azimuth)
+    logging.debug('Calculating Ross Thick Kernel')
+    ross = ross_kernel(view_zenith, solar_zenith, relative_azimuth)
+
+    return band_coef['fiso'] + band_coef['fvol']*ross +band_coef['fgeo']*li
 
 
 def bandpassHLS_1_4(img, band, satsen):
@@ -189,157 +300,126 @@ def bandpassHLS_1_4(img, band, satsen):
         Returns:
             array: Array containing image pixel values bandpassed.
     """
-    print('Applying bandpass band {} satsen {}'.format(band, satsen), flush=True)
-    #Skakun2018 coefficients
+    logging.info('Applying bandpass band {} satsen {}'.format(band, satsen), flush=True)
+    # Skakun et. al, 2018 - Harmonized Landsat Sentinel-2 (HLS) Product User’s Guide
     if (satsen == 'S2A'):
-        if (band == 'B01'): #ultraBlue/coastal #MODIS don't have this band
+        if (band == 'sr_band1'): # UltraBlue/coastal #MODIS don't have this band # B01
             slope = 0.9959
             offset = -0.0002
-        elif (band == 'B02'): #Blue
+        elif (band == 'sr_band2'): # Blue # B02
             slope = 0.9778
             offset = -0.004
-        elif (band == 'B03'): #Green
+        elif (band == 'sr_band3'): # Green # B03
             slope = 1.0053
             offset = -0.0009
-        elif (band == 'B04'): #Red
+        elif (band == 'sr_band4'): # Red # B04
             slope = 0.9765
             offset = 0.0009
-        elif (band == 'B08' or band == 'B8A'): # Narrow Nir
+        elif (band == 'sr_band8' or band == 'sr_band8a'): # Nir # B08 B8A
             slope = 0.9983
             offset = -0.0001
-        elif (band == 'B11'): #Swir 1
+        elif (band == 'sr_band11'): # Swir 1 # B11
             slope = 0.9987
             offset = -0.0011
-        elif (band == 'B12'): #Swir 2
+        elif (band == 'sr_band12'): # Swir 2 # B12
             slope = 1.003
             offset = -0.0012
-        img = (img * slope) + offset
+        img = numpy.add(numpy.multiply(img, slope), offset)
 
     elif (satsen == 'S2B'):
-        if (band == 'B01'): #ultraBlue/coastal #MODIS don't have this band
+        print("S2B")
+        if (band == 'sr_band1'): # UltraBlue/coastal #MODIS don't have this band # B01
             slope = 0.9959
             offset = -0.0002
-        elif (band == 'B02'): #Blue
+        elif (band == 'sr_band2'): # Blue # B02
             slope = 0.9778
             offset = -0.004
-        elif (band == 'B03'): #Green
+        elif (band == 'sr_band3'): # Green # B03
             slope = 1.0075
             offset = -0.0008
-        elif (band == 'B04'): #Red
+        elif (band == 'sr_band4'): # Red # B04
             slope = 0.9761
             offset = 0.001
-        elif (band == 'B08' or band == 'B8A'): # Narrow Nir
+        elif (band == 'sr_band8' or band == 'sr_band8a'): # Nir # B08 B8A
             slope = 0.9966
             offset = 0.000
-        elif (band == 'B11'): #Swir 1
+        elif (band == 'sr_band11'): # Swir 1 # B11
             slope = 1.000
             offset = -0.0003
-        elif (band == 'B12'): #Swir 2
+        elif (band == 'sr_band12'): # Swir 2 # B12
             slope = 0.9867
             offset = -0.0004
-        img = (img * slope) + offset
+
+        img = numpy.add(numpy.multiply(img, slope), offset)
 
     return img
 
 
-def calculate_global_kernels(band_sz, band_sa, band_vz, band_va):
+def process_NBAR(img_dir, bands, sz_path, sa_path, vz_path, va_path, satsen, out_dir):
     """
-        Calculate kernels that will be used by all bands.
-
-        Parameters:
-            band_sz (array): solar zenith angle.
-            band_sa (array): solar azimuth angle.
-            band_vz (array): view (sensor) zenith angle.
-            band_va (array): view (sensor) azimuth angle.
-        Returns:
-            kernel (array), refkernel (array): calculated kernels for target and reference respectively.
-    """
-    ### Applying scale factor on angle bands
-    solar_zenith = numpy.divide(band_sz, 100)*DE2RA
-    view_zenith = numpy.divide(band_vz, 100)*DE2RA
-    relative_azimuth = numpy.divide(numpy.subtract(band_va, band_sa), 100)*DE2RA
-    solar_zenith_output = numpy.copy(solar_zenith)
-    kernel = CalculateKernels(view_zenith, solar_zenith, relative_azimuth)
-    refkernel = CalculateKernels(numpy.zeros(len(view_zenith)), solar_zenith_output, numpy.zeros(len(view_zenith)))
-
-    return kernel, refkernel
-
-
-def NBAR_calculate_global_perband(arr, kernel, refkernel, b):
-    """
-        Computes Normalized BRDF Adjusted Reflectance (NBAR).
-
-        Parameters:
-            arr (array): array containing image values.
-            kernel (array): target kernel array values.
-            refkernel (array): reference kernel array values.
-            b (int): band number.
-        Returns:
-            array: input image multiplyed by the c-factor.
-    """
-    sensor_input = arr
-    sensor_output = arr
-    notnan_index = ~numpy.isnan(arr)
-    if (numpy.any(notnan_index)):
-        srf0 = refkernel.dot(pars_array[b,:].T)
-        srf1 = kernel.dot(pars_array[b,:].T)
-        ratio = numpy.ravel(numpy.divide(srf0, srf1).T)
-        sensor_output = numpy.multiply(ratio, sensor_input).astype(numpy.int16)
-
-    return sensor_output
-
-
-def process_NBAR(img_dir, bands, band_sz, band_sa, band_vz, band_va, satsen, pars_array_index, out_dir):
-    """
-        Prepare Normalized BRDF Adjusted Reflectance (NBAR).
+        Calculate Normalized BRDF Adjusted Reflectance (NBAR).
 
         Parameters:
             img_dir (str): input directory.
             bands (list): list of bands to process.
-            band_sz (array): solar zenith angle.
-            band_sa (array): solar azimuth angle.
-            band_vz (array): view (sensor) zenith angle.
-            band_va (array): view (sensor) azimuth angle.
+            sz_path (array): solar zenith angle.
+            sa_path (array): solar azimuth angle.
+            vz_path (array): view (sensor) zenith angle.
+            va_path (array): view (sensor) azimuth angle.
             satsen (str): satellite sensor (S2A or S2B), used for bandpass.
-            pars_array_index: band parameters coefficient index.
             out_dir: output directory.
-        Returns:
-            dict: overlap and secant sum of solar zenith, view zenith angle.
     """
-    imgs = os.listdir(img_dir)
-
-    kernel, refkernel = calculate_global_kernels(band_sz, band_sa, band_vz, band_va)
+    nodata = -9999
 
     for b in bands:
-        print('Harmonization band {}'.format(b), flush=True)
-        r = re.compile('.*_{}.tif$|.*_{}.*jp2$'.format(b,b))
-        print(list(filter(r.match, imgs)))
-        input_file = list(filter(r.match, imgs))[0]
-        output_file = out_dir + input_file[0:-4].replace('_sr_', '_NBAR_') + '.tif'
+        print("Harmonizing band {}".format(b))
+        # Search for input file
+        r = re.compile('.*_{}.tif$|.*_{}.*jp2$'.format(b, b))
+        imgs_in_dir = os.listdir(img_dir)
+        logging.debug(list(filter(r.match, imgs_in_dir)))
+        input_file = list(filter(r.match, imgs_in_dir))[0]
+        output_file = os.path.join(out_dir, (input_file[0:-4].replace('_sr_', '_NBAR_') + '.tif'))
+        img_path = os.path.join(img_dir, input_file)
 
-        print('Reading input data ...', flush=True)
-        with rasterio.open(img_dir + input_file) as dataset:
-            band = dataset.read(1)
-            nodata = dataset.nodata
-            mask = band == nodata
-            kwargs = dataset.meta
-        band_one = band.flatten()
+        # Prepare template band
+        with rasterio.open(img_path) as src:
+            profile = src.profile
+            tilelist = list(src.block_windows())
+            height, width = src.shape
+            profile['nodata'] = nodata
+        nbar = numpy.full((height, width), dtype='float', fill_value=nodata)
 
-        print("Producing NBAR band {} ({})...".format(b, pars_array_index[b]), flush=True)
-        band_one = NBAR_calculate_global_perband(band_one, kernel, refkernel, pars_array_index[b])
+        for _, window in tilelist:
+            print("Harmonizing band {0} window {1}".format(b, window))
+            row_offset = window.row_off + window.height
+            col_offset = window.col_off + window.width
 
+            # Load angle bands
+            view_zenith, solar_zenith, relative_azimuth = prepare_angles(sz_path, sa_path, vz_path, va_path, satsen, b,
+                                                                         window)
+
+            band_common_name = consult_band(b, satsen)
+            band_coef = brdf_coefficients[band_common_name]
+
+            brf_sensor = calc_brf(view_zenith, solar_zenith, relative_azimuth, band_coef)
+            brf_ref = calc_brf(numpy.zeros(len(view_zenith)), solar_zenith, numpy.zeros(len(view_zenith)), band_coef)
+            c_factor = brf_ref/brf_sensor
+
+            # Reading input reflectance image
+            reflectance_img = load_img(img_path, window)
+
+            # Producing NBAR band
+            nbar[window.row_off: row_offset, window.col_off: col_offset] = reflectance_img * c_factor
+
+        # Check if apply bandpass
         if (satsen == 'S2A') or (satsen == 'S2B'):
-            band_one = bandpassHLS_1_4(band_one, b, satsen)
+            print("Performing bandpass ...")
+            nbar = bandpassHLS_1_4(nbar, b, satsen).astype(profile['dtype'])
 
-        dims = band.shape
-        band = band_one.astype(numpy.int16).reshape((dims[0], dims[1]))
-        if mask.any():
-            band[mask] = nodata
+        nbar[numpy.isnan(nbar)] = nodata
+        profile['dtype'] = 'int16'
 
-        kwargs['dtype'] = numpy.int16
-        kwargs['driver'] = 'Gtiff'
-        kwargs['compress'] = 'LZW'
-        with rasterio.open(str(output_file), 'w', **kwargs) as dst:
-            dst.write_band(1, band)
+        with rasterio.open(str(output_file), 'w', **profile) as nbar_dataset:
+            nbar_dataset.write_band(1, nbar.astype('int16'))
 
     return
