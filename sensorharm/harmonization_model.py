@@ -15,14 +15,13 @@ from rasterio._io import Window
 from rasterio.enums import Resampling
 
 
-# Coeffients in  Roy, D. P., Zhang, H. K., Ju, J., Gomez-Dans, J. L., Lewis, P. E., Schaaf, C. B., Sun Q., Li J., Huang H., & Kovalskyy, V. (2016). 
-# A general method to normalize Landsat reflectance data to nadir BRDF adjusted reflectance. 
-# Remote Sensing of Environment, 176, 255-271.
-# pars_array = numpy.matrix('774 372 79; 1306 580 178; 1690 574 227; 3093 1535 330; 3430 1154 453; 2658 639 387')
 br_ratio = 1.0  # shape parameter
 hb_ratio = 2.0  # crown relative height
 DE2RA = 0.0174532925199432956  # Degree to Radian proportion
 
+# Coeffients in  Roy, D. P., Zhang, H. K., Ju, J., Gomez-Dans, J. L., Lewis, P. E., Schaaf, C. B., Sun Q., Li J., Huang H., & Kovalskyy, V. (2016).
+# A general method to normalize Landsat reflectance data to nadir BRDF adjusted reflectance.
+# Remote Sensing of Environment, 176, 255-271.
 brdf_coefficients = {
     'blue': {
         'fiso': 774,
@@ -81,6 +80,17 @@ def consult_band(b, satsen):
 
 
 def load_raster_resampled(img_path, resample_factor=1/2, window=None):
+    """
+        Load and resample image.
+
+        Parameters:
+            img_path (str): path to image.
+            resample_factor (str): resample factor.
+            window (Window): window.
+
+        Returns:
+            raster: numpy.array.
+        """
     # Resample the window
     res_window = Window(window.col_off / resample_factor, window.row_off / resample_factor,
                         window.width / resample_factor, window.height / resample_factor)
@@ -106,14 +116,14 @@ def load_raster_resampled(img_path, resample_factor=1/2, window=None):
 
 def load_img(img_path, window=None):
     """
-            Load image into an xarray Data Array.
+        Load image into an xarray Data Array.
 
-            Parameters:
-                img_path (str): path to input file.
-                window (Window): rasterio window.
+        Parameters:
+            img_path (str): path to input file.
+            window (Window): rasterio window.
 
-            Returns:
-                raster: numpy.array.
+        Returns:
+            raster: numpy.array.
         """
     logging.debug('Loading {} ...'.format(img_path))
     with rasterio.open(img_path) as dataset:
@@ -123,7 +133,21 @@ def load_img(img_path, window=None):
 
 
 def prepare_angles(sz_path, sa_path, vz_path, va_path, satsen, band, window=None):
+    """
+        Scale angle bands, convert from radians, calculate relative azimuth angle band.
 
+        Parameters:
+            sz_path (str): path to solar zenith file.
+            sa_path (str): path to solar azimuth file.
+            vz_path (str): path to view (sensor) zenith file.
+            va_path (str): path to view (sensor) azimuth file.
+            satsen (str): satellite sensor.
+            band (str): band.
+            window (Window): rasterio window.
+
+        Returns:
+            raster, raster, raster: numpy.array (view_zenith, solar_zenith, relative_azimuth).
+    """
     if satsen == 'S2A' or satsen == 'S2B':
         if band in ['sr_band8a', 'sr_band11', 'sr_band12']: # ['B8A','B11','B12']:
             print("Resampling angle bands")
@@ -144,23 +168,77 @@ def prepare_angles(sz_path, sa_path, vz_path, va_path, satsen, band, window=None
 
 
 def sec(angle):
+    """
+        Calculate secant.
+
+        Parameters:
+            angle (numpy array): raster band of angle.
+
+        Returns:
+            secant : numpy.array.
+    """
     return 1./numpy.cos(angle) #numpy.divide(1./numpy.cos(angle))
 
 
 def calc_cos_t(hb_ratio, d, theta_s_i, theta_v_i, relative_azimuth):
+    """
+        Calculate t cossine.
+
+        Parameters:
+            hb_ratio (int): h/b.
+            d (numpy array): d.
+            theta_s_i (numpy array): theta_s_i.
+            theta_v_i (numpy array): theta_v_i.
+            relative_azimuth (numpy array): relative_azimuth.
+
+        Returns:
+            cos_t : numpy.array.
+    """
     return hb_ratio * numpy.sqrt(d*d + numpy.power(numpy.tan(theta_s_i)*numpy.tan(theta_v_i)*numpy.sin(relative_azimuth), 2)) / (sec(theta_s_i) + sec(theta_v_i))
 
 
 def calc_d(theta_s_i, theta_v_i, relative_azimuth):
+    """
+        Calculate d.
+
+        Parameters:
+            theta_s_i (numpy array): theta_s_i.
+            theta_v_i (numpy array): theta_v_i.
+            relative_azimuth (numpy array): relative_azimuth.
+
+        Returns:
+            d : numpy.array.
+    """
     return numpy.sqrt(
     numpy.tan(theta_s_i)*numpy.tan(theta_s_i) + numpy.tan(theta_v_i)*numpy.tan(theta_v_i) - 2*numpy.tan(theta_s_i)*numpy.tan(theta_v_i)*numpy.cos(relative_azimuth))
 
 
 def calc_theta_i(angle, br_ratio):
+    """
+        Calculate calc_theta_i.
+
+        Parameters:
+            angle (numpy array): theta_s_i.
+            br_ratio (int): b/r.
+
+        Returns:
+            theta_i : numpy.array.
+    """
     return numpy.arctan(br_ratio * numpy.tan(angle))
 
 
 def li_kernel(view_zenith, solar_zenith, relative_azimuth):
+    """
+        Calculate Li Kernel - Li X. and Strahler A. H., (1986) - Geometric-Optical Bidirectional Reflectance Modeling of a Conifer Forest Canopy.
+
+        Parameters:
+            view_zenith (numpy array): view zenith.
+            solar_zenith (numpy array): solar zenith.
+            relative_azimuth (numpy array): relative_azimuth.
+
+        Returns:
+            li_kernel : numpy.array.
+    """
     #ref 1986
     theta_s_i = calc_theta_i(solar_zenith, br_ratio)
     theta_v_i = calc_theta_i(view_zenith, br_ratio)
@@ -174,12 +252,35 @@ def li_kernel(view_zenith, solar_zenith, relative_azimuth):
 
 
 def ross_kernel(view_zenith, solar_zenith, relative_azimuth):
+    """
+        Calculate Ross-Thick Kernel.
+
+        Parameters:
+            view_zenith (numpy array): view zenith.
+            solar_zenith (numpy array): solar zenith.
+            relative_azimuth (numpy array): relative_azimuth.
+
+        Returns:
+            ross_thick_kernel : numpy.array.
+    """
     cos_e = numpy.cos(solar_zenith)*numpy.cos(view_zenith) + numpy.sin(solar_zenith)*numpy.sin(view_zenith)*numpy.cos(relative_azimuth)
     e = numpy.arccos(cos_e)
     return ((((numpy.pi / 2.) - e)*cos_e + numpy.sin(e)) / (numpy.cos(solar_zenith) + numpy.cos(view_zenith)) ) - (numpy.pi / 4)
 
 
 def calc_brf(view_zenith, solar_zenith, relative_azimuth, band_coef):
+    """
+        Calculate brf.
+
+        Parameters:
+            view_zenith (numpy array): view zenith.
+            solar_zenith (numpy array): solar zenith.
+            relative_azimuth (numpy array): relative_azimuth.
+            band_coef (float): MODIS band coefficient.
+
+        Returns:
+            brf : numpy.array.
+    """
     logging.debug('Calculating Li Sparce Reciprocal Kernel')
     li = li_kernel(view_zenith, solar_zenith, relative_azimuth)
     logging.debug('Calculating Ross Thick Kernel')
@@ -200,7 +301,7 @@ def bandpassHLS_1_4(img, band, satsen):
             array: Array containing image pixel values bandpassed.
     """
     logging.info('Applying bandpass band {} satsen {}'.format(band, satsen), flush=True)
-    #Skakun2018 coefficients
+    # Skakun et. al, 2018 - Harmonized Landsat Sentinel-2 (HLS) Product User’s Guide
     if (satsen == 'S2A'):
         if (band == 'sr_band1'): # UltraBlue/coastal #MODIS don't have this band # B01
             slope = 0.9959
@@ -256,22 +357,17 @@ def bandpassHLS_1_4(img, band, satsen):
 
 def process_NBAR(img_dir, bands, sz_path, sa_path, vz_path, va_path, satsen, out_dir):
     """
-        Prepare Normalized BRDF Adjusted Reflectance (NBAR).
+        Calculate Normalized BRDF Adjusted Reflectance (NBAR).
 
         Parameters:
             img_dir (str): input directory.
             bands (list): list of bands to process.
-            band_sz (array): solar zenith angle.
-            band_sa (array): solar azimuth angle.
-            band_vz (array): view (sensor) zenith angle.
-            band_va (array): view (sensor) azimuth angle.
+            sz_path (array): solar zenith angle.
+            sa_path (array): solar azimuth angle.
+            vz_path (array): view (sensor) zenith angle.
+            va_path (array): view (sensor) azimuth angle.
             satsen (str): satellite sensor (S2A or S2B), used for bandpass.
-            pars_array_index: band parameters coefficient index.
             out_dir: output directory.
-            chunk_x: chunk size in x.
-            chunk_y: chunk size in y.
-        Returns:
-            dict: overlap and secant sum of solar zenith, view zenith angle.
     """
     nodata = -9999
 

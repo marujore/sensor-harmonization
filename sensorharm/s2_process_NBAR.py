@@ -12,10 +12,10 @@ if len(sys.argv) < 4:
     sys.exit()
 
 
-def main(SAFEL1C, sr_dir, target_dir):
+def main(safel1c, sr_dir, target_dir):
     os.makedirs(target_dir, exist_ok=True)
 
-    sentinel_harmonize(SAFEL1C, sr_dir, target_dir)
+    sentinel_harmonize(safel1c, sr_dir, target_dir)
 
     return
 
