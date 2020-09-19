@@ -11,7 +11,7 @@ import re
 import numpy
 import numpy.ma
 import rasterio
-from rasterio._io import Window
+from rasterio.windows import Window
 from rasterio.enums import Resampling
 
 
@@ -73,7 +73,7 @@ def consult_band(b, satsen):
         return common_name[b]
     if satsen == 'S2A' or satsen == 'S2B':
         common_name = {'sr_band1': 'coastal', 'sr_band2': 'blue', 'sr_band3': 'green', 'sr_band4': 'red',
-                       'sr_band3': 'green', 'sr_band4': 'rededge1', 'sr_band5': 'rededge2', 'sr_band6': 'rededge3',
+                       'sr_band5': 'rededge1', 'sr_band6': 'rededge2', 'sr_band7': 'rededge3',
                        'sr_band8': 'nir', 'sr_band8a': 'nir', 'sr_band11': 'swir1', 'sr_band12': 'swir2'}
         return common_name[b]
     return
@@ -92,10 +92,9 @@ def load_raster_resampled(img_path, resample_factor=1/2, window=None):
             raster: numpy.array.
         """
     # Resample the window
-    res_window = Window(window.col_off / resample_factor, window.row_off / resample_factor,
-                        window.width / resample_factor, window.height / resample_factor)
+    res_window = Window(window.col_off * resample_factor, window.row_off * resample_factor,
+                        window.width * resample_factor, window.height * resample_factor)
     with rasterio.open(img_path) as dataset:
-        profile = dataset.profile
         try:
             raster = dataset.read(
                 # 1,
@@ -111,7 +110,7 @@ def load_raster_resampled(img_path, resample_factor=1/2, window=None):
         except:
             logging.info("BREAK RES WINDOW {}".format(res_window))
             return
-        return raster[0]
+        return raster
 
 
 def load_img(img_path, window=None):
@@ -239,7 +238,7 @@ def li_kernel(view_zenith, solar_zenith, relative_azimuth):
         Returns:
             li_kernel : numpy.array.
     """
-    #ref 1986
+    # ref 1986
     theta_s_i = calc_theta_i(solar_zenith, br_ratio)
     theta_v_i = calc_theta_i(view_zenith, br_ratio)
     d = calc_d(theta_s_i, theta_v_i, relative_azimuth)
@@ -265,7 +264,7 @@ def ross_kernel(view_zenith, solar_zenith, relative_azimuth):
     """
     cos_e = numpy.cos(solar_zenith)*numpy.cos(view_zenith) + numpy.sin(solar_zenith)*numpy.sin(view_zenith)*numpy.cos(relative_azimuth)
     e = numpy.arccos(cos_e)
-    return ((((numpy.pi / 2.) - e)*cos_e + numpy.sin(e)) / (numpy.cos(solar_zenith) + numpy.cos(view_zenith)) ) - (numpy.pi / 4)
+    return ((((numpy.pi / 2.) - e)*cos_e + numpy.sin(e)) / (numpy.cos(solar_zenith) + numpy.cos(view_zenith))) - (numpy.pi / 4)
 
 
 def calc_brf(view_zenith, solar_zenith, relative_azimuth, band_coef):
@@ -302,51 +301,51 @@ def bandpassHLS_1_4(img, band, satsen):
     """
     logging.info('Applying bandpass band {} satsen {}'.format(band, satsen), flush=True)
     # Skakun et. al, 2018 - Harmonized Landsat Sentinel-2 (HLS) Product User’s Guide
-    if (satsen == 'S2A'):
-        if (band == 'sr_band1'): # UltraBlue/coastal #MODIS don't have this band # B01
+    if satsen == 'S2A':
+        if band == 'sr_band1':  # UltraBlue/coastal #MODIS don't have this band # B01
             slope = 0.9959
             offset = -0.0002
-        elif (band == 'sr_band2'): # Blue # B02
+        elif band == 'sr_band2':  # Blue # B02
             slope = 0.9778
             offset = -0.004
-        elif (band == 'sr_band3'): # Green # B03
+        elif band == 'sr_band3':  # Green # B03
             slope = 1.0053
             offset = -0.0009
-        elif (band == 'sr_band4'): # Red # B04
+        elif band == 'sr_band4':  # Red # B04
             slope = 0.9765
             offset = 0.0009
-        elif (band == 'sr_band8' or band == 'sr_band8a'): # Nir # B08 B8A
+        elif band == 'sr_band8' or band == 'sr_band8a':  # Nir # B08 B8A
             slope = 0.9983
             offset = -0.0001
-        elif (band == 'sr_band11'): # Swir 1 # B11
+        elif band == 'sr_band11':  # Swir 1 # B11
             slope = 0.9987
             offset = -0.0011
-        elif (band == 'sr_band12'): # Swir 2 # B12
+        elif band == 'sr_band12':  # Swir 2 # B12
             slope = 1.003
             offset = -0.0012
         img = numpy.add(numpy.multiply(img, slope), offset)
 
-    elif (satsen == 'S2B'):
+    elif satsen == 'S2B':
         print("S2B")
-        if (band == 'sr_band1'): # UltraBlue/coastal #MODIS don't have this band # B01
+        if band == 'sr_band1':  # UltraBlue/coastal #MODIS don't have this band # B01
             slope = 0.9959
             offset = -0.0002
-        elif (band == 'sr_band2'): # Blue # B02
+        elif band == 'sr_band2':  # Blue # B02
             slope = 0.9778
             offset = -0.004
-        elif (band == 'sr_band3'): # Green # B03
+        elif band == 'sr_band3':  # Green # B03
             slope = 1.0075
             offset = -0.0008
-        elif (band == 'sr_band4'): # Red # B04
+        elif band == 'sr_band4':  # Red # B04
             slope = 0.9761
             offset = 0.001
-        elif (band == 'sr_band8' or band == 'sr_band8a'): # Nir # B08 B8A
+        elif band == 'sr_band8' or band == 'sr_band8a':  # Nir # B08 B8A
             slope = 0.9966
             offset = 0.000
-        elif (band == 'sr_band11'): # Swir 1 # B11
+        elif band == 'sr_band11':  # Swir 1 # B11
             slope = 1.000
             offset = -0.0003
-        elif (band == 'sr_band12'): # Swir 2 # B12
+        elif band == 'sr_band12':  # Swir 2 # B12
             slope = 0.9867
             offset = -0.0004
 
@@ -402,7 +401,7 @@ def process_NBAR(img_dir, bands, sz_path, sa_path, vz_path, va_path, satsen, out
             band_coef = brdf_coefficients[band_common_name]
 
             brf_sensor = calc_brf(view_zenith, solar_zenith, relative_azimuth, band_coef)
-            brf_ref = calc_brf(numpy.zeros(len(view_zenith)), solar_zenith, numpy.zeros(len(view_zenith)), band_coef)
+            brf_ref = calc_brf(numpy.zeros(view_zenith.shape), solar_zenith, numpy.zeros(view_zenith.shape), band_coef)
             c_factor = brf_ref/brf_sensor
 
             # Reading input reflectance image
