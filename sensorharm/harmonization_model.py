@@ -7,6 +7,7 @@
 import logging
 import os
 import re
+from pathlib import Path
 # 3rdparty
 import numpy
 import numpy.ma
@@ -376,9 +377,9 @@ def process_NBAR(img_dir, bands, sz_path, sa_path, vz_path, va_path, satsen, out
         r = re.compile('.*_{}.tif$|.*_{}.*jp2$'.format(b, b))
         imgs_in_dir = os.listdir(img_dir)
         logging.debug(list(filter(r.match, imgs_in_dir)))
-        input_file = list(filter(r.match, imgs_in_dir))[0]
-        output_file = os.path.join(out_dir, (input_file[0:-4].replace('_sr_', '_NBAR_') + '.tif'))
-        img_path = os.path.join(img_dir, input_file)
+        input_file = Path(list(filter(r.match, imgs_in_dir))[0])
+        output_file = out_dir.joinpath(Path(input_file.name.replace('_sr_', '_NBAR_')).with_suffix('.tif'))
+        img_path = img_dir.joinpath(input_file)
 
         # Prepare template band
         with rasterio.open(img_path) as src:

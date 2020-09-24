@@ -1,5 +1,4 @@
 # Python Native
-import os
 import sys
 import time
 # Sensorharm
@@ -12,7 +11,7 @@ if len(sys.argv) < 3:
 
 
 def main(productdir, target_dir):
-    os.makedirs(target_dir, exist_ok=True)
+    target_dir.mkdir(parents=True, exist_ok=True)
 
     landsat_harmonize(productdir, target_dir)
 
