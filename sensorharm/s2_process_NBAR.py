@@ -22,4 +22,4 @@ if __name__ == '__main__':
     start = time.time()
     main(sys.argv[1], sys.argv[2], sys.argv[3])
     end = time.time()
-    print("Duration time: {}".format(end - start))
+    print(f'Duration time: {end - start}')

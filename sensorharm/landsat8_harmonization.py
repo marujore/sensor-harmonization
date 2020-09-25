@@ -44,7 +44,7 @@ def landsat_harmonize(productdir, target_dir=None):
     productdir = Path(productdir)
     target_dir = Path(target_dir)
 
-    print('Loading Angles from {} ...'.format(productdir))
+    print(f'Loading Angles from {productdir} ...')
     sz_path, sa_path, vz_path, va_path = get_landsat_angles(productdir)
 
     if target_dir is None:

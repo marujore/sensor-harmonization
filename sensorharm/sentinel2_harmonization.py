@@ -22,32 +22,31 @@ def sentinel_harmonize_SAFE(safel1c, safel2a, target_dir=None):
             str: path to folder containing result images.
     """
     # Generating Angle bands
-    sz_path, sa_path, vz_path, va_path = s2angs.gen_s2_ang(safel1c)
+    sz_path, sa_path, vz_path, va_path = s2angs.gen_s2_ang(str(safel1c))
 
     if target_dir is None:
-        target_dir = os.path.join(safel2a, 'GRANULE', os.path.join(os.listdir(os.path.join(safel2a,'GRANULE/'))[0], 'HARMONIZED_DATA/'))
+        target_dir = safel2a.joinpath('GRANULE', os.listdir(safel2a.joinpath('GRANULE'))[0], 'HARMONIZED_DATA/')
     target_dir.mkdir(parents=True, exist_ok=True)
 
     logging.info('Harmonization ...')
     # Sentinel-2 data set
-    satsen = os.path.basename(safel2a)[0:3]
+    satsen = safel2a.name[:3]
     logging.info('SatSen: {}'.format(satsen))
 
-    img_dir = os.path.join(safel2a, 'GRANULE', os.path.join(os.listdir(os.path.join(safel2a,'GRANULE/'))[0], 'IMG_DATA/R10m/'))
+    img_dir = safel2a.joinpath('GRANULE', os.listdir(safel2a.joinpath('GRANULE'))[0], 'IMG_DATA/R10m/')
     bands10m = ['B02', 'B03', 'B04', 'B08']
     process_NBAR(img_dir, bands10m, sz_path, sa_path, vz_path, va_path, satsen, target_dir)
 
-    img_dir = os.path.join(safel2a, 'GRANULE', os.path.join(os.listdir(os.path.join(safel2a,'GRANULE/'))[0], 'IMG_DATA/R20m/'))
+    img_dir = safel2a.joinpath('GRANULE', os.listdir(safel2a.joinpath('GRANULE'))[0], 'IMG_DATA/R20m/')
     bands20m = ['B8A', 'B11', 'B12']
     process_NBAR(img_dir, bands20m, sz_path, sa_path, vz_path, va_path, satsen, target_dir)
 
     # COPY quality band
     pattern = re.compile('.*SCL.*')
-    img_data_dir = safel2a.joinpath('GRANULE', os.listdir(safel2a.joinpath('GRANULE'))[0], 'IMG_DATA/R20m/')
-    img_list = img_data_dir.glob('**/*.jp2')
-    qa_filepath = list(item for item in img_list if pattern.match(str(item)))[0]
+    img_list = img_dir.glob('**/*.jp2')
+    qa_filepath = Path(list(item for item in img_list if pattern.match(str(item)))[0])
     # Convert jp2 to tiff
-    os.system('gdal_translate -of Gtiff ' + qa_filepath + ' ' + target_dir + '/' + os.path.basename(qa_filepath)[:-4] + '.tif')
+    os.system('gdal_translate -of Gtiff ' + str(qa_filepath) + ' ' + str(target_dir) + '/' + str(Path(qa_filepath.name).with_suffix('.tif')))
 
     return target_dir
 
@@ -72,7 +71,7 @@ def sentinel_harmonize_sr(safel1c, sr_dir, target_dir):
     print('Harmonization ...', flush=True)
     # Sentinel-2 data set
     satsen = sr_dir.name[0:3]
-    print('SatSen: {}'.format(satsen), flush=True)
+    print(f'SatSen: {satsen}', flush=True)
 
     bands = ['sr_band2', 'sr_band3', 'sr_band4', 'sr_band8', 'sr_band8a', 'sr_band11', 'sr_band12']
 

@@ -75,7 +75,10 @@ def consult_band(b, satsen):
     if satsen == 'S2A' or satsen == 'S2B':
         common_name = {'sr_band1': 'coastal', 'sr_band2': 'blue', 'sr_band3': 'green', 'sr_band4': 'red',
                        'sr_band5': 'rededge1', 'sr_band6': 'rededge2', 'sr_band7': 'rededge3',
-                       'sr_band8': 'nir', 'sr_band8a': 'nir', 'sr_band11': 'swir1', 'sr_band12': 'swir2'}
+                       'sr_band8': 'nir', 'sr_band8a': 'nir', 'sr_band11': 'swir1', 'sr_band12': 'swir2',
+                       'B01': 'coastal', 'B02': 'blue', 'B03': 'green', 'B04': 'red',
+                       'B05': 'rededge1', 'B06': 'rededge2', 'B07': 'rededge3',
+                       'B08': 'nir', 'B8A': 'nir', 'B11': 'swir1', 'B12': 'swir2'}
         return common_name[b]
     return
 
@@ -303,50 +306,50 @@ def bandpassHLS_1_4(img, band, satsen):
     logging.info('Applying bandpass band {} satsen {}'.format(band, satsen), flush=True)
     # Skakun et. al, 2018 - Harmonized Landsat Sentinel-2 (HLS) Product User’s Guide
     if satsen == 'S2A':
-        if band == 'sr_band1':  # UltraBlue/coastal #MODIS don't have this band # B01
+        if band == 'coastal':  # UltraBlue/coastal #MODIS don't have this band # B01
             slope = 0.9959
             offset = -0.0002
-        elif band == 'sr_band2':  # Blue # B02
+        elif band == 'blue':  # Blue # B02
             slope = 0.9778
             offset = -0.004
-        elif band == 'sr_band3':  # Green # B03
+        elif band == 'green':  # Green # B03
             slope = 1.0053
             offset = -0.0009
-        elif band == 'sr_band4':  # Red # B04
+        elif band == 'red':  # Red # B04
             slope = 0.9765
             offset = 0.0009
-        elif band == 'sr_band8' or band == 'sr_band8a':  # Nir # B08 B8A
+        elif band == 'nir':  # Nir # B08 B8A
             slope = 0.9983
             offset = -0.0001
-        elif band == 'sr_band11':  # Swir 1 # B11
+        elif band == 'swir1':  # Swir 1 # B11
             slope = 0.9987
             offset = -0.0011
-        elif band == 'sr_band12':  # Swir 2 # B12
+        elif band == 'swir2':  # Swir 2 # B12
             slope = 1.003
             offset = -0.0012
         img = numpy.add(numpy.multiply(img, slope), offset)
 
     elif satsen == 'S2B':
         print("S2B")
-        if band == 'sr_band1':  # UltraBlue/coastal #MODIS don't have this band # B01
+        if band == 'coastal':  # UltraBlue/coastal #MODIS don't have this band # B01
             slope = 0.9959
             offset = -0.0002
-        elif band == 'sr_band2':  # Blue # B02
+        elif band == 'blue':  # Blue # B02
             slope = 0.9778
             offset = -0.004
-        elif band == 'sr_band3':  # Green # B03
+        elif band == 'green':  # Green # B03
             slope = 1.0075
             offset = -0.0008
-        elif band == 'sr_band4':  # Red # B04
+        elif band == 'red':  # Red # B04
             slope = 0.9761
             offset = 0.001
-        elif band == 'sr_band8' or band == 'sr_band8a':  # Nir # B08 B8A
+        elif band == 'nir':  # Nir # B08 B8A
             slope = 0.9966
             offset = 0.000
-        elif band == 'sr_band11':  # Swir 1 # B11
+        elif band == 'swir1':  # Swir 1 # B11
             slope = 1.000
             offset = -0.0003
-        elif band == 'sr_band12':  # Swir 2 # B12
+        elif band == 'swir2':  # Swir 2 # B12
             slope = 0.9867
             offset = -0.0004
 
@@ -372,7 +375,7 @@ def process_NBAR(img_dir, bands, sz_path, sa_path, vz_path, va_path, satsen, out
     nodata = -9999
 
     for b in bands:
-        print("Harmonizing band {}".format(b))
+        print(f"Harmonizing band {b}")
         # Search for input file
         r = re.compile('.*_{}.tif$|.*_{}.*jp2$'.format(b, b))
         imgs_in_dir = os.listdir(img_dir)
@@ -390,7 +393,7 @@ def process_NBAR(img_dir, bands, sz_path, sa_path, vz_path, va_path, satsen, out
         nbar = numpy.full((height, width), dtype='float', fill_value=nodata)
 
         for _, window in tilelist:
-            print("Harmonizing band {0} window {1}".format(b, window))
+            print(f"Harmonizing band {b} window {window}")
             row_offset = window.row_off + window.height
             col_offset = window.col_off + window.width
 
@@ -414,7 +417,7 @@ def process_NBAR(img_dir, bands, sz_path, sa_path, vz_path, va_path, satsen, out
         # Check if apply bandpass
         if (satsen == 'S2A') or (satsen == 'S2B'):
             print("Performing bandpass ...")
-            nbar = bandpassHLS_1_4(nbar, b, satsen).astype(profile['dtype'])
+            nbar = bandpassHLS_1_4(nbar, consult_band(b, satsen), satsen).astype(profile['dtype'])
 
         nbar[numpy.isnan(nbar)] = nodata
         profile['dtype'] = 'int16'

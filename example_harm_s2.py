@@ -13,4 +13,4 @@ target_dir = '/path/to/output/NBAR/'
 sensorharm.sentinel_harmonize(safel1c, sr_dir, target_dir)
 
 end = time.time()
-print("Duration time: {}".format(end - start))
+print(f'Duration time: {end - start}')
