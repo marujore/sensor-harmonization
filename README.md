@@ -7,7 +7,7 @@ Generate Landsat-8 and Sentinel-2 NBAR (Nadir BRDF Adjusted Reflectance) product
 - GDAL
 - Numpy
 - Rasterio
-- S2angs (https://github.com/marujore/sentinel2_angle_bands)
+- S2angs (https://github.com/brazil-data-cube/sentinel2_angle_bands)
 
 ## Installing via Git
 
@@ -25,9 +25,7 @@ pip install .
 
 ## Usage
 
-[NBAR Landsat-8](https://github.com/marujore/sensor_harmonization/blob/master/sensorharm/example_harm_l8.py)
-[NBAR Sentinel-2]https://github.com/marujore/sensor_harmonization/blob/master/sensorharm/example_harm_l8.py)
-
-## Disclaimer
-
-The script may not work on L2A products, since the MTD_TL.xml file is different from L1C.
+[NBAR Landsat-5](./example_harm_l5.py)
+[NBAR Landsat-7](./example_harm_l7.py)
+[NBAR Landsat-8](./example_harm_l8.py)
+[NBAR Sentinel-2](./example_harm_l8.py)
