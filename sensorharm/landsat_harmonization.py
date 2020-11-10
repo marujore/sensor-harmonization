@@ -31,9 +31,17 @@ def get_landsat_angles(productdir):
     return sz_path, sa_path, vz_path, va_path
 
 
-def landsat_harmonize(productdir, target_dir=None):
+def get_landsat_bands(satsen):
+    if satsen == 'LT5' or satsen == 'LE7':
+        return ['sr_band1', 'sr_band2', 'sr_band3', 'sr_band4', 'sr_band5', 'sr_band7']
+    elif satsen == 'LC8':
+        return ['sr_band2', 'sr_band3', 'sr_band4', 'sr_band5', 'sr_band6', 'sr_band7']
+    return
+
+
+def landsat_harmonize(satsen, productdir, target_dir=None):
     """
-        Prepare Landsat NBAR.
+        Prepare Landsat-7 NBAR.
 
         Parameters:
             productdir (str): path to directory containing angle bands.
@@ -51,8 +59,7 @@ def landsat_harmonize(productdir, target_dir=None):
         target_dir = productdir.joinpath(Path('HARMONIZED_DATA'))
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    satsen = 'LC8'
-    bands = ['sr_band2', 'sr_band3', 'sr_band4', 'sr_band5', 'sr_band6', 'sr_band7']
+    bands = get_landsat_bands(satsen)
 
     print('Harmonization ...')
     process_NBAR(productdir, bands, sz_path, sa_path, vz_path, va_path, satsen, target_dir)

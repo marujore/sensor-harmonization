@@ -68,11 +68,19 @@ def consult_band(b, satsen):
         Returns:
             str: band common name.
     """
-    if satsen == 'LC8':
+    if satsen == 'LT5':
+        common_name = {'sr_band1': 'blue', 'sr_band2':'green', 'sr_band3':'red', 'sr_band4':'nir', 'sr_band5':'swir1',
+                       'sr_band7':'swir2'}
+        return common_name[b]
+    elif satsen == 'LE7':
+        common_name = {'sr_band1': 'blue', 'sr_band2':'green', 'sr_band3':'red', 'sr_band4':'nir', 'sr_band5':'swir1',
+                       'sr_band7':'swir2'}
+        return common_name[b]
+    elif satsen == 'LC8':
         common_name = {'sr_band1': 'coastal', 'sr_band2':'blue', 'sr_band3':'green', 'sr_band4':'red', 'sr_band5':'nir',
                        'sr_band6':'swir1', 'sr_band7':'swir2'}
         return common_name[b]
-    if satsen == 'S2A' or satsen == 'S2B':
+    elif satsen == 'S2A' or satsen == 'S2B':
         common_name = {'sr_band1': 'coastal', 'sr_band2': 'blue', 'sr_band3': 'green', 'sr_band4': 'red',
                        'sr_band5': 'rededge1', 'sr_band6': 'rededge2', 'sr_band7': 'rededge3',
                        'sr_band8': 'nir', 'sr_band8a': 'nir', 'sr_band11': 'swir1', 'sr_band12': 'swir2',
@@ -375,7 +383,7 @@ def process_NBAR(img_dir, bands, sz_path, sa_path, vz_path, va_path, satsen, out
     nodata = -9999
 
     for b in bands:
-        print(f"Harmonizing band {b}")
+        print(f"Harmonizing band {b} ...")
         # Search for input file
         r = re.compile('.*_{}.tif$|.*_{}.*jp2$'.format(b, b))
         imgs_in_dir = os.listdir(img_dir)
@@ -392,17 +400,17 @@ def process_NBAR(img_dir, bands, sz_path, sa_path, vz_path, va_path, satsen, out
             profile['nodata'] = nodata
         nbar = numpy.full((height, width), dtype='float', fill_value=nodata)
 
+        band_common_name = consult_band(b, satsen)
+        band_coef = brdf_coefficients[band_common_name]
+
         for _, window in tilelist:
-            print(f"Harmonizing band {b} window {window}")
+            # print(f"Harmonizing band {b} window {window}")
             row_offset = window.row_off + window.height
             col_offset = window.col_off + window.width
 
             # Load angle bands
             view_zenith, solar_zenith, relative_azimuth = prepare_angles(sz_path, sa_path, vz_path, va_path, satsen, b,
                                                                          window)
-
-            band_common_name = consult_band(b, satsen)
-            band_coef = brdf_coefficients[band_common_name]
 
             brf_sensor = calc_brf(view_zenith, solar_zenith, relative_azimuth, band_coef)
             brf_ref = calc_brf(numpy.zeros(view_zenith.shape), solar_zenith, numpy.zeros(view_zenith.shape), band_coef)
