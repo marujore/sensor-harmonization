@@ -161,7 +161,6 @@ def prepare_angles(sz_path, sa_path, vz_path, va_path, satsen, band, window=None
     """
     if satsen == 'S2A' or satsen == 'S2B':
         if band in ['sr_band8a', 'sr_band11', 'sr_band12']: # ['B8A','B11','B12']:
-            print("Resampling angle bands")
             relative_azimuth = numpy.divide(
                 numpy.subtract(load_raster_resampled(va_path, 0.5, window),
                                load_raster_resampled(sa_path, 0.5, window)),
