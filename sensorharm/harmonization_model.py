@@ -366,7 +366,7 @@ def bandpassHLS_1_4(img, band, satsen):
     return img
 
 
-def process_NBAR(img_dir, bands, sz_path, sa_path, vz_path, va_path, satsen, out_dir):
+def process_NBAR(img_dir, bands, sz_path, sa_path, vz_path, va_path, satsen, out_dir, apply_bandpass=True):
     """
         Calculate Normalized BRDF Adjusted Reflectance (NBAR).
 
@@ -423,9 +423,10 @@ def process_NBAR(img_dir, bands, sz_path, sa_path, vz_path, va_path, satsen, out
             nbar[window.row_off: row_offset, window.col_off: col_offset] = reflectance_img * c_factor
 
         # Check if apply bandpass
-        if (satsen == 'S2A') or (satsen == 'S2B'):
-            print("Performing bandpass ...")
-            nbar = bandpassHLS_1_4(nbar, consult_band(b, satsen), satsen).astype(profile['dtype'])
+        if apply_bandpass:
+            if (satsen == 'S2A') or (satsen == 'S2B'):
+                print("Performing bandpass ...")
+                nbar = bandpassHLS_1_4(nbar, consult_band(b, satsen), satsen).astype(profile['dtype'])
 
         nbar[numpy.isnan(nbar)] = nodata
         profile['dtype'] = 'int16'
