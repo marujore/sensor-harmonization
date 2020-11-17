@@ -12,7 +12,7 @@ install_requires = [
 setup(
     # Needed to silence warnings (and to be a worthwhile package)
     name='sensor-harm',
-    url='https://github.com/marujore/sensor_harmonization',
+    url='https://github.com/marujore/sensor-harm',
     author='Rennan Marujo',
     author_email='rennanmarujo@gmail.com',
     # Needed to actually package something
