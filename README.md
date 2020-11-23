@@ -1,3 +1,5 @@
+# This repository has been moved to https://github.com/brazil-data-cube/sensor-harm
+
 # Sensor Harmonization (Landsat-8 and Sentinel-2)
 
 Generate Landsat-8 and Sentinel-2 NBAR (Nadir BRDF Adjusted Reflectance) product.
